@@ -1,10 +1,10 @@
+# app/main.py
 from fastapi import FastAPI
 from app.routes.ingest import router as ingest_router
 
 app = FastAPI()
+app.include_router(ingest_router)
 
 @app.get("/")
-def health():
-    return {"status": "ok"}
-
-app.include_router(ingest_router, prefix="/ingest", tags=["Ingest"])
+async def root():
+    return {"message": "FastAPI + MiniLM embeddings ready!"}

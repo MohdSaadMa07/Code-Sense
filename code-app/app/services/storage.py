@@ -1,18 +1,28 @@
 from langchain_community.vectorstores import FAISS
-import os
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 
-from app.services.embeddings import create_embeddings
+# Lazy initialization 
+_vectorstore = None
+_embeddings = None
 
-VECTOR_DB_PATH = "data/faiss"
+def get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _embeddings
 
+def get_vectorstore():
+    global _vectorstore
+    if _vectorstore is None:
+        embeddings = get_embeddings()
+        _vectorstore = FAISS.from_texts([""], embeddings)
+    return _vectorstore
 
-def store_documents(text_chunks: list[str]):
-    embeddings = create_embeddings()
-
-    vectorstore = FAISS.from_texts(
-        texts=text_chunks,
-        embedding=embeddings
-    )
-
-    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
-    vectorstore.save_local(VECTOR_DB_PATH)
+def store_documents(documents: list[Document]):
+    if not documents:
+        raise ValueError("No documents provided")
+    
+    vectorstore = get_vectorstore()
+    vectorstore.add_documents(documents)
+    return len(documents)

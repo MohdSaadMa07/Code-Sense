@@ -1,8 +1,6 @@
-from langchain_openai import OpenAIEmbeddings
-
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 def create_embeddings():
-    """
-    Creates and returns embedding model
-    """
-    return OpenAIEmbeddings()
+    return HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
