@@ -1,23 +1,36 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Virtual environment
-.venv/
-
+# Environments
+.env
+.venv
+env/
 venv/
-# VSCode settings
+ENV/
+
+# PyCharm / IntelliJ
+.idea/
+
+# VS Code
 .vscode/
 
-# Mac / Windows system files
-.DS_Store
-Thumbs.db
+### Project Specific ###
 
-# Data or logs (optional)
-data/
+# Large Models
+*.gguf
+*.bin
+*.onnx
+*.safetensors
+code-app/app/models/*.gguf
+code-app/all-MiniLM-L6-v2/
+
+# Vector Store
+code-app/vectorstore/
+vectorstore/
+*.faiss
+*.pkl
+
+# Logs
 *.log
-output/
-
-.env
