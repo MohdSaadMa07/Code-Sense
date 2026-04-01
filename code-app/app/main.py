@@ -5,8 +5,14 @@ from app.routes.query import router as query_router
 from app.routes.github import router as github_router
 from app.routes.llama import router as llama_router
 
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load env from both common locations; app/.env overrides root if both exist.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+APP_DIR = Path(__file__).resolve().parent
+load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(APP_DIR / ".env", override=True)
 
 app = FastAPI()
 app.include_router(ingest_router)

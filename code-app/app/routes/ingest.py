@@ -1,7 +1,6 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.storage import store_documents
-from langchain_core.documents import Document  # Fixed: from langchain-core
-from langchain_text_splitters import RecursiveCharacterTextSplitter  # Fixed: separate package
+from langchain_core.documents import Document
 
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"])
@@ -9,23 +8,33 @@ router = APIRouter(prefix="/ingest", tags=["Ingest"])
 
 @router.post("/")
 async def ingest_file(file: UploadFile = File(...)):
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=422, detail="Uploaded file is empty.")
+
     try:
-        content = await file.read()
         text = content.decode("utf-8")
-        chunks = split_text(text)  
-        documents = [Document(page_content=chunk) for chunk in chunks]
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file must be UTF-8 encoded text.",
+        ) from exc
 
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="Uploaded file has no ingestible text content.")
+
+    documents = [
+        Document(
+            page_content=text,
+            metadata={"filename": file.filename} if file.filename else {},
+        )
+    ]
+
+    try:
         chunks_ingested = store_documents(documents)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {exc}") from exc
 
-        return {"status": "success", "chunks_ingested": chunks_ingested}
-
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-def split_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
-    splitter = RecursiveCharacterTextSplitter(  # Now works
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap
-    )
-    return splitter.split_text(text)
+    return {"status": "success", "chunks_ingested": chunks_ingested}
