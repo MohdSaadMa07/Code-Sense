@@ -1,5 +1,6 @@
 # app/main.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.routes.ingest import router as ingest_router
 from app.routes.query import router as query_router
 from app.routes.github import router as github_router
@@ -15,6 +16,23 @@ load_dotenv(PROJECT_ROOT / ".env")
 load_dotenv(APP_DIR / ".env", override=True)
 
 app = FastAPI()
+
+# Allow local frontend apps to call the API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(ingest_router)
 app.include_router(query_router)
 app.include_router(github_router)
