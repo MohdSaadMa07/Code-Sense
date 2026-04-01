@@ -39,12 +39,28 @@ def extract_table_headers(context: str) -> list[str]:
     return headers
 
 
+# ── Detect field extraction queries ──────────────────────────────────────────
+def is_field_extraction_query(query: str) -> bool:
+    """
+    Detect if query is asking for database/table structure.
+    If query contains: fields/columns/table/headers/shown/displayed/visible
+    → use JSON extraction prompt
+    Otherwise → use plain Q&A prompt
+    """
+    field_keywords = {
+        "fields", "columns", "table", "headers",
+        "shown", "displayed", "visible", "keys", "properties", "attributes", "schema", "structure"
+    }
+    query_lower = query.lower()
+    return any(keyword in query_lower for keyword in field_keywords)
+
+
 # ── Grounding check (length-aware) ────────────────────────────────────────────
 def is_grounded(answer: str, context: str) -> bool:
     context_stripped = context.strip()
     answer_stripped = answer.strip()
 
-    # A 29-char comment cannot ground a 600-char step-by-step answer
+    # A short context cannot ground a long answer
     if len(context_stripped) < 100 and len(answer_stripped) > 150:
         return False
 
@@ -57,21 +73,13 @@ def is_grounded(answer: str, context: str) -> bool:
     overlap = answer_words.intersection(context_words)
     ratio = len(overlap) / len(answer_words)
 
-    # Require both high word overlap AND context has enough substance
+    # Require both high word overlap AND context has enough substance (> 50 words)
     return ratio > 0.6 and len(context_words) > 50
-
-
-# ── Safe JSON parsing ─────────────────────────────────────────────────────────
-def safe_json_load(output: str):
-    try:
-        output = output.replace("```json", "").replace("```python", "").replace("```", "")
-        return json.loads(output)
-    except Exception:
-        return None
 
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
 def deduplicate_docs(docs: list[Document]) -> list[Document]:
+    """Remove duplicate documents by page_content"""
     seen = set()
     unique = []
     for doc in docs:
@@ -83,6 +91,7 @@ def deduplicate_docs(docs: list[Document]) -> list[Document]:
 
 # ── Drop junk chunks too short to ground any answer ──────────────────────────
 def filter_short_chunks(docs: list[Document]) -> list[Document]:
+    """Filter out chunks shorter than MIN_CHUNK_LENGTH"""
     return [doc for doc in docs if len(doc.page_content.strip()) >= MIN_CHUNK_LENGTH]
 
 
@@ -92,7 +101,7 @@ def _format_chunks(docs: list[Document]) -> list[dict]:
         {
             "chunk": doc.page_content,
             "score": getattr(doc, "score", None),
-            "source": doc.metadata.get("source", doc.metadata.get("path", "unknown")),
+            "source": doc.metadata.get("path", "unknown"),
             "metadata": doc.metadata,
         }
         for doc in docs
@@ -103,26 +112,35 @@ def _format_chunks(docs: list[Document]) -> list[dict]:
 def rag_query(query: str, top_k: int = 3) -> dict:
     """
     Hybrid RAG pipeline:
-      1. Retrieve (fetch 3× to survive dedup + length filter losses)
+      1. Retrieve 3× candidates to survive dedup/filter losses
       2. Deduplicate by page_content
-      3. Filter out short/junk chunks (< 80 chars)
-      4. Deterministic extraction — BeautifulSoup <th> scan (no LLM)
-      5. LLM fallback — strict JSON extraction with length-aware grounding
+      3. Extract table headers from ALL deduped docs (deterministic)
+      4. Filter out short chunks (< 80 chars)
+      5. Call LLM only if quality context remains
     """
     vs = get_vectorstore()
     if vs is None:
         raise ValueError("Vectorstore not initialised. Ingest documents first.")
 
-    # Step 1 — retrieve extra candidates to compensate for dedup/filter losses
+    # Step 1: Retrieve extra candidates (3×) to compensate for dedup/filter losses
     raw_docs: list[Document] = vs.similarity_search(query, k=top_k * 3)
 
-    # Step 2 — deduplicate
+    # Step 2: Deduplicate by page_content
     docs = deduplicate_docs(raw_docs)
 
-    # Step 3 — drop junk chunks before passing to LLM
+    # Step 3: Deterministic table extraction on ALL deduped docs
+    all_content = "\n\n".join(doc.page_content for doc in docs)
+    table_headers = extract_table_headers(all_content)
+    if table_headers:
+        return {
+            "llm_answer": f"Table columns found: {', '.join(table_headers)}",
+            "retrieved_chunks": _format_chunks(docs[:top_k]),
+        }
+
+    # Step 4: Filter out short chunks before LLM
     quality_docs = filter_short_chunks(docs)
 
-    # ── Step 5: LLM fallback — bail early if no quality context survived
+    # Step 5: Bail if no quality context survived
     if not quality_docs:
         return {
             "llm_answer": "NOT FOUND IN CONTEXT",
@@ -136,34 +154,67 @@ def rag_query(query: str, top_k: int = 3) -> dict:
         for doc in llm_docs
     )
 
-    # Modern Q&A prompt - answer questions based on code context
-    prompt = f"""You are a helpful code assistant. Answer the user's question based ONLY on the provided code context.
+    # ── Choose prompt based on query type ──────────────────────────────────────
+    if is_field_extraction_query(query):
+        # Schema extraction prompt (JSON format for field names)
+        prompt = f"""You are a database schema analyzer. Extract field/column names from the provided code context.
 
-IMPORTANT RULES:
-1. Answer based strictly on the provided context
-2. If the context answers the question, provide a clear, concise answer
-3. Use code snippets from the context if relevant
-4. If the context does not contain relevant information, respond with: NOT FOUND IN CONTEXT
-5. Do not make up or infer information not in the context
+RULES:
+1. Look for class definitions, database models, or data structures
+2. List all field/column names found
+3. If no schema found, respond with: NOT FOUND IN CONTEXT
+4. Do not make up fields
 
 PROVIDED CODE CONTEXT:
 {context}
 
-USER QUESTION:
+QUERY:
 {query}
 
-YOUR ANSWER:"""
+FIELDS/COLUMNS:"""
+    else:
+        # Fix 30: Simplified Q&A prompt template
+        prompt = f"""Answer ONLY using the context. If not found say NOT FOUND IN CONTEXT. Do not repeat the context.
+
+CONTEXT:
+{context}
+
+QUESTION: {query}
+
+ANSWER:"""
 
     llm = get_llm()
-    response = llm(prompt, max_tokens=512)
-    answer = response["choices"][0]["text"].strip()
+    # Fix 27: Add stop sequences including "PLEASE" to prevent overflow
+    response = llm(
+        prompt,
+        max_tokens=512,
+        stop=["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE"]
+    )
+    raw_output = response["choices"][0]["text"].strip()
 
-    # Simple grounding check - if answer is too long but context is short, likely hallucination
-    if len(context.strip()) < 200 and len(answer) > 400 and answer != "NOT FOUND IN CONTEXT":
+    # Strip everything after any stop sequence marker
+    for stop_marker in ["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE"]:
+        if stop_marker in raw_output:
+            raw_output = raw_output[:raw_output.index(stop_marker)].strip()
+            break
+
+    answer = raw_output
+
+    # Fix 29: For Q&A (non-field) queries, skip is_grounded() check
+    # Just return the stripped answer
+    if not is_field_extraction_query(query):
         return {
-            "llm_answer": "NOT FOUND IN CONTEXT",
+            "llm_answer": answer,
             "retrieved_chunks": _format_chunks(llm_docs),
         }
+
+    # For field extraction queries, apply grounding check
+    if len(context.strip()) < 200 and len(answer) > 400 and answer != "NOT FOUND IN CONTEXT":
+        if not is_grounded(answer, context):
+            return {
+                "llm_answer": "NOT FOUND IN CONTEXT",
+                "retrieved_chunks": _format_chunks(llm_docs),
+            }
 
     return {
         "llm_answer": answer,

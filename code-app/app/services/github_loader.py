@@ -6,8 +6,8 @@ from langchain_core.documents import Document
 
 GITHUB_API_BASE = "https://api.github.com"
 
-ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".md", ".txt", ".json", ".yml", ".yaml", ".html", ".css", ".java", ".go", ".rb", ".php", ".sql", ".sh", ".env"}
-IGNORED_FOLDERS = {".github", "tests", "__tests__"}
+ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".md", ".txt", ".json", ".yml", ".yaml", ".html", ".java", ".go", ".rb", ".php", ".sql", ".sh", ".env"}
+IGNORED_FOLDERS = {".github", "tests", "__tests__", "static/vendors", "static/vendor"}
 
 
 def get_headers():

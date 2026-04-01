@@ -117,7 +117,7 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-def store_documents(documents: list[Document], chunk_size=500, chunk_overlap=50):
+def store_documents(documents: list[Document], chunk_size=1500, chunk_overlap=150):
     if not documents:
         raise ValueError("No documents provided")
 
