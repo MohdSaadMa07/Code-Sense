@@ -89,6 +89,42 @@ def deduplicate_docs(docs: list[Document]) -> list[Document]:
     return unique
 
 
+# ── Content-aware re-ranking (boost method-related chunks) ──────────────────
+def rerank_by_content_keywords(docs: list[Document], query: str) -> list[Document]:
+    """
+    Re-rank chunks based on keyword presence.
+    Prioritizes methodology-related content over system components.
+
+    Keywords boosted:
+    - Method indicators: "tier", "threshold", "rule-based", "z-score", "isolation forest"
+    - Algorithm names: "gemini", "api", "model"
+    - Implementation details: "justification", "detection", "method", "algorithm"
+    """
+    method_keywords = {
+        "tier", "threshold", "rule-based", "rules", "scoring", "score",
+        "z-score", "isolation", "forest", "anomaly", "detect", "detection",
+        "method", "algorithm", "approach", "technique", "implementation",
+        "gemini", "api", "justify", "justification", "reason", "explain"
+    }
+
+    query_lower = query.lower()
+    query_has_method_markers = any(kw in query_lower for kw in {"method", "detect", "anomaly", "algorithm", "tier", "threshold", "approach"})
+
+    # If query explicitly asks for methods, prioritize method-containing chunks
+    if query_has_method_markers:
+        scored_docs = []
+        for doc in docs:
+            content_lower = doc.page_content.lower()
+            keyword_count = sum(1 for kw in method_keywords if kw in content_lower)
+            scored_docs.append((keyword_count, doc))
+
+        # Sort by keyword count (descending), then maintain original order for ties
+        scored_docs.sort(key=lambda x: x[0], reverse=True)
+        return [doc for _, doc in scored_docs]
+
+    return docs
+
+
 # ── Drop junk chunks too short to ground any answer ──────────────────────────
 def filter_short_chunks(docs: list[Document]) -> list[Document]:
     """Filter out chunks shorter than MIN_CHUNK_LENGTH"""
@@ -127,6 +163,9 @@ def rag_query(query: str, top_k: int = 3) -> dict:
 
     # Step 2: Deduplicate by page_content
     docs = deduplicate_docs(raw_docs)
+
+    # Step 2b: Re-rank by content keywords to boost method-related chunks
+    docs = rerank_by_content_keywords(docs, query)
 
     # Step 3: Deterministic table extraction on ALL deduped docs
     all_content = "\n\n".join(doc.page_content for doc in docs)
@@ -184,16 +223,26 @@ QUESTION: {query}
 ANSWER:"""
 
     llm = get_llm()
-    # Fix 27: Add stop sequences including "PLEASE" to prevent overflow
+
+    # Determine max_tokens and stop sequences based on query type
+    is_field_query = is_field_extraction_query(query)
+
+    # For Q&A: shorter max_tokens to prevent hallucination
+    # For field extraction: longer max_tokens to get complete field lists
+    max_tokens = 256 if not is_field_query else 512
+
+    # Extended stop sequences with FAQ and Techniques markers
+    stop_sequences = ["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE", "FAQ", "Techniques used:"]
+
     response = llm(
         prompt,
-        max_tokens=512,
-        stop=["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE"]
+        max_tokens=max_tokens,
+        stop=stop_sequences
     )
     raw_output = response["choices"][0]["text"].strip()
 
     # Strip everything after any stop sequence marker
-    for stop_marker in ["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE"]:
+    for stop_marker in stop_sequences:
         if stop_marker in raw_output:
             raw_output = raw_output[:raw_output.index(stop_marker)].strip()
             break
