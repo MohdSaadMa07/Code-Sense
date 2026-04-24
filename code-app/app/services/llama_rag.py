@@ -1,16 +1,15 @@
 from llama_cpp import Llama
 from app.services.storage import get_vectorstore
-from langchain_core.documents import Document
-from bs4 import BeautifulSoup
-import json
 from pathlib import Path
+import re
 
-# Resolve model path relative to this file's location
+print("🔥 USING NEW RAG FILE")
+
+# ---------------------------
+# Model Setup
+# ---------------------------
 _APP_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = str(_APP_DIR / "models" / "Llama-3.2-1B-Instruct-F16.gguf")
-
-# Chunks shorter than this are stray comments / single lines that cause hallucination
-MIN_CHUNK_LENGTH = 80
 
 _llm = None
 
@@ -20,252 +19,176 @@ def get_llm():
     if _llm is None:
         _llm = Llama(
             model_path=MODEL_PATH,
-            n_ctx=8192,
+            n_ctx=4096,
             n_threads=8,
-            temperature=0.1,
-            top_p=0.9,
+            temperature=0.2,
         )
     return _llm
 
 
-# ── Deterministic extraction (PRIMARY path) ───────────────────────────────────
-def extract_table_headers(context: str) -> list[str]:
-    headers = []
-    soup = BeautifulSoup(context, "html.parser")
-    for th in soup.find_all("th"):
-        text = th.get_text(strip=True)
-        if text:
-            headers.append(text)
-    return headers
-
-
-# ── Detect field extraction queries ──────────────────────────────────────────
-def is_field_extraction_query(query: str) -> bool:
-    """
-    Detect if query is asking for database/table structure.
-    If query contains: fields/columns/table/headers/shown/displayed/visible
-    → use JSON extraction prompt
-    Otherwise → use plain Q&A prompt
-    """
-    field_keywords = {
-        "fields", "columns", "table", "headers",
-        "shown", "displayed", "visible", "keys", "properties", "attributes", "schema", "structure"
-    }
-    query_lower = query.lower()
-    return any(keyword in query_lower for keyword in field_keywords)
-
-
-# ── Grounding check (length-aware) ────────────────────────────────────────────
-def is_grounded(answer: str, context: str) -> bool:
-    context_stripped = context.strip()
-    answer_stripped = answer.strip()
-
-    # A short context cannot ground a long answer
-    if len(context_stripped) < 100 and len(answer_stripped) > 150:
-        return False
-
-    answer_words = set(answer_stripped.lower().split())
-    context_words = set(context_stripped.lower().split())
-
-    if not answer_words:
-        return False
-
-    overlap = answer_words.intersection(context_words)
-    ratio = len(overlap) / len(answer_words)
-
-    # Require both high word overlap AND context has enough substance (> 50 words)
-    return ratio > 0.6 and len(context_words) > 50
-
-
-# ── Deduplication ─────────────────────────────────────────────────────────────
-def deduplicate_docs(docs: list[Document]) -> list[Document]:
-    """Remove duplicate documents by page_content"""
-    seen = set()
-    unique = []
-    for doc in docs:
-        if doc.page_content not in seen:
-            seen.add(doc.page_content)
-            unique.append(doc)
-    return unique
-
-
-# ── Content-aware re-ranking (boost method-related chunks) ──────────────────
-def rerank_by_content_keywords(docs: list[Document], query: str) -> list[Document]:
-    """
-    Re-rank chunks based on keyword presence.
-    Prioritizes methodology-related content over system components.
-
-    Keywords boosted:
-    - Method indicators: "tier", "threshold", "rule-based", "z-score", "isolation forest"
-    - Algorithm names: "gemini", "api", "model"
-    - Implementation details: "justification", "detection", "method", "algorithm"
-    """
-    method_keywords = {
-        "tier", "threshold", "rule-based", "rules", "scoring", "score",
-        "z-score", "isolation", "forest", "anomaly", "detect", "detection",
-        "method", "algorithm", "approach", "technique", "implementation",
-        "gemini", "api", "justify", "justification", "reason", "explain"
-    }
-
-    query_lower = query.lower()
-    query_has_method_markers = any(kw in query_lower for kw in {"method", "detect", "anomaly", "algorithm", "tier", "threshold", "approach"})
-
-    # If query explicitly asks for methods, prioritize method-containing chunks
-    if query_has_method_markers:
-        scored_docs = []
-        for doc in docs:
-            content_lower = doc.page_content.lower()
-            keyword_count = sum(1 for kw in method_keywords if kw in content_lower)
-            scored_docs.append((keyword_count, doc))
-
-        # Sort by keyword count (descending), then maintain original order for ties
-        scored_docs.sort(key=lambda x: x[0], reverse=True)
-        return [doc for _, doc in scored_docs]
-
-    return docs
-
-
-# ── Drop junk chunks too short to ground any answer ──────────────────────────
-def filter_short_chunks(docs: list[Document]) -> list[Document]:
-    """Filter out chunks shorter than MIN_CHUNK_LENGTH"""
-    return [doc for doc in docs if len(doc.page_content.strip()) >= MIN_CHUNK_LENGTH]
-
-
-# ── Format chunks for API response ───────────────────────────────────────────
-def _format_chunks(docs: list[Document]) -> list[dict]:
-    return [
-        {
-            "chunk": doc.page_content,
-            "score": getattr(doc, "score", None),
-            "source": doc.metadata.get("path", "unknown"),
-            "metadata": doc.metadata,
-        }
-        for doc in docs
+# ---------------------------
+# Helpers
+# ---------------------------
+def _is_code_query(query: str) -> bool:
+    markers = [
+        "function", "method", "parameters", "threshold",
+        "anomaly", "cpu", "ram", "z-score"
     ]
+    return any(m in query.lower() for m in markers)
 
 
-# ── Main RAG pipeline ─────────────────────────────────────────────────────────
-def rag_query(query: str, top_k: int = 3) -> dict:
-    """
-    Hybrid RAG pipeline:
-      1. Retrieve 3× candidates to survive dedup/filter losses
-      2. Deduplicate by page_content
-      3. Extract table headers from ALL deduped docs (deterministic)
-      4. Filter out short chunks (< 80 chars)
-      5. Call LLM only if quality context remains
-    """
+def _is_code_doc(doc) -> bool:
+    content = (doc.page_content or "").lower()
+    path = str(doc.metadata.get("path", "")).lower()
+    return path.endswith(".py") or "def " in content or "class " in content
+
+
+def _rerank_docs(docs, query):
+    if not _is_code_query(query):
+        return docs
+
+    code_docs = [d for d in docs if _is_code_doc(d)]
+    non_code = [d for d in docs if d not in code_docs]
+
+    # prioritize real code heavily
+    return code_docs + non_code
+
+
+def _build_context(docs):
+    chunks = []
+    for d in docs:
+        content = (d.page_content or "").strip()
+        if not content:
+            continue
+
+        chunks.append(
+            f"[FILE]: {d.metadata.get('path','unknown')}\n{content}"
+        )
+
+    return "\n\n".join(chunks)
+
+
+def _is_grounded(answer: str, context: str) -> bool:
+    if not answer.strip() or not context.strip():
+        return False
+
+    context_lower = context.lower()
+    words = [w.lower() for w in answer.split() if len(w) > 3]
+
+    hits = sum(1 for w in words if w in context_lower)
+
+    return hits >= 2  # still permissive
+
+
+# ---------------------------
+# Main RAG Function
+# ---------------------------
+def rag_query(query: str, top_k: int = 3):
     vs = get_vectorstore()
-    if vs is None:
-        raise ValueError("Vectorstore not initialised. Ingest documents first.")
+    if not vs:
+        raise ValueError("Vectorstore not initialized")
 
-    # Step 1: Retrieve extra candidates (3×) to compensate for dedup/filter losses
-    raw_docs: list[Document] = vs.similarity_search(query, k=top_k * 3)
+    # 1. Retrieve more docs
+    results = vs.similarity_search_with_score(query, k=top_k * 3)
 
-    # Step 2: Deduplicate by page_content
-    docs = deduplicate_docs(raw_docs)
+    # 2. Deduplicate (strip-based)
+    seen = set()
+    docs = []
+    scores = {}
 
-    # Step 2b: Re-rank by content keywords to boost method-related chunks
-    docs = rerank_by_content_keywords(docs, query)
+    for doc, score in results:
+        key = (doc.page_content or "").strip()
+        if not key or key in seen:
+            continue
 
-    # Step 3: Deterministic table extraction on ALL deduped docs
-    all_content = "\n\n".join(doc.page_content for doc in docs)
-    table_headers = extract_table_headers(all_content)
-    if table_headers:
+        seen.add(key)
+        docs.append(doc)
+        scores[key] = float(score)
+
+    if not docs:
         return {
-            "llm_answer": f"Table columns found: {', '.join(table_headers)}",
-            "retrieved_chunks": _format_chunks(docs[:top_k]),
+            "llm_answer": "No relevant context found in repository.",
+            "retrieved_chunks": []
         }
 
-    # Step 4: Filter out short chunks before LLM
-    quality_docs = filter_short_chunks(docs)
+    # 3. Rerank
+    docs = _rerank_docs(docs, query)
 
-    # Step 5: Bail if no quality context survived
-    if not quality_docs:
-        return {
-            "llm_answer": "NOT FOUND IN CONTEXT",
-            "retrieved_chunks": _format_chunks(docs[:top_k]),
-        }
+    # 4. Select
+    selected_docs = docs[:top_k]
 
-    llm_docs = quality_docs[:top_k]
+    context = _build_context(selected_docs)
 
-    context = "\n\n".join(
-        f"[FILE]: {doc.metadata.get('path', 'unknown')}\n[CONTENT]:\n{doc.page_content}"
-        for doc in llm_docs
-    )
+    # ---------------------------
+    # 🔥 Deterministic psutil extraction (improved)
+    # ---------------------------
+    if "psutil" in query.lower():
+        extracted = set()
 
-    # ── Choose prompt based on query type ──────────────────────────────────────
-    if is_field_extraction_query(query):
-        # Schema extraction prompt (JSON format for field names)
-        prompt = f"""You are a database schema analyzer. Extract field/column names from the provided code context.
+        for d in selected_docs:
+            matches = re.findall(r"psutil\.\w+", d.page_content or "")
+            extracted.update(matches)
 
-RULES:
-1. Look for class definitions, database models, or data structures
-2. List all field/column names found
-3. If no schema found, respond with: NOT FOUND IN CONTEXT
-4. Do not make up fields
+        if extracted:
+            return {
+                "llm_answer": "psutil-related functions and attributes:\n- " + "\n- ".join(sorted(extracted)),
+                "retrieved_chunks": [
+                    {
+                        "chunk": d.page_content,
+                        "source": d.metadata.get("path"),
+                        "score": scores.get((d.page_content or "").strip())
+                    }
+                    for d in selected_docs
+                ]
+            }
 
-PROVIDED CODE CONTEXT:
-{context}
+    # ---------------------------
+    # 🧠 Strong Prompt
+    # ---------------------------
+    prompt = f"""
+You are a code analysis assistant.
 
-QUERY:
-{query}
-
-FIELDS/COLUMNS:"""
-    else:
-        # Fix 30: Simplified Q&A prompt template
-        prompt = f"""Answer ONLY using the context. If not found say NOT FOUND IN CONTEXT. Do not repeat the context.
+STRICT RULES:
+- Always answer using the given context
+- If code exists → explain what it does
+- Mention function names clearly
+- Even partial info → still answer
+- Do NOT say "not found"
 
 CONTEXT:
 {context}
 
-QUESTION: {query}
+QUESTION:
+{query}
 
-ANSWER:"""
+ANSWER:
+"""
 
     llm = get_llm()
+    response = llm(prompt, max_tokens=400)
 
-    # Determine max_tokens and stop sequences based on query type
-    is_field_query = is_field_extraction_query(query)
+    answer = response["choices"][0]["text"].strip()
 
-    # For Q&A: shorter max_tokens to prevent hallucination
-    # For field extraction: longer max_tokens to get complete field lists
-    max_tokens = 256 if not is_field_query else 512
+    # cleanup weird model outputs
+    answer = answer.split("CONTEXT:")[0].strip()
 
-    # Extended stop sequences with FAQ and Techniques markers
-    stop_sequences = ["[FILE]:", "CONTEXT:", "QUERY:", "PLEASE", "FAQ", "Techniques used:"]
+    # ---------------------------
+    # Soft grounding (never block)
+    # ---------------------------
+    if not _is_grounded(answer, context):
+        answer += "\n\n(Note: partially inferred from limited context)"
 
-    response = llm(
-        prompt,
-        max_tokens=max_tokens,
-        stop=stop_sequences
-    )
-    raw_output = response["choices"][0]["text"].strip()
-
-    # Strip everything after any stop sequence marker
-    for stop_marker in stop_sequences:
-        if stop_marker in raw_output:
-            raw_output = raw_output[:raw_output.index(stop_marker)].strip()
-            break
-
-    answer = raw_output
-
-    # Fix 29: For Q&A (non-field) queries, skip is_grounded() check
-    # Just return the stripped answer
-    if not is_field_extraction_query(query):
-        return {
-            "llm_answer": answer,
-            "retrieved_chunks": _format_chunks(llm_docs),
-        }
-
-    # For field extraction queries, apply grounding check
-    if len(context.strip()) < 200 and len(answer) > 400 and answer != "NOT FOUND IN CONTEXT":
-        if not is_grounded(answer, context):
-            return {
-                "llm_answer": "NOT FOUND IN CONTEXT",
-                "retrieved_chunks": _format_chunks(llm_docs),
-            }
-
+    # ---------------------------
+    # Return
+    # ---------------------------
     return {
         "llm_answer": answer,
-        "retrieved_chunks": _format_chunks(llm_docs),
+        "retrieved_chunks": [
+            {
+                "chunk": d.page_content,
+                "source": d.metadata.get("path"),
+                "score": scores.get((d.page_content or "").strip())
+            }
+            for d in selected_docs
+        ]
     }
