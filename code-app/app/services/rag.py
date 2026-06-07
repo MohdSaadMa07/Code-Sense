@@ -4,7 +4,7 @@ import traceback
 import os
 import re
 
-print("🔥 USING RAG FILE:", __file__)
+print("[RAG] Using RAG file:", __file__)
 
 # ---------------------------
 # Model Setup (Improved)
@@ -183,7 +183,7 @@ Rules:
 
             result = output.get("choices", [{}])[0].get("text", "").strip()
 
-            print("🧠 RAW LLM ANSWER:", result)
+            print("[LLM] RAW LLM ANSWER:", result)
 
             if not result:
                 result = "Answer inferred from available context."

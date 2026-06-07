@@ -1,8 +1,10 @@
 from typing import Optional
+import numpy as np
 
 from fastapi import APIRouter, Query, HTTPException, Body
 from pydantic import BaseModel
 from app.services.llama_rag import rag_query
+from app.services.storage import get_embeddings
 
 router = APIRouter(prefix="/llama", tags=["LLaMA"])
 
@@ -26,36 +28,39 @@ def _detect_failure(answer: str) -> bool:
     return any(p in answer_lower for p in bad_phrases)
 
 
-def _keyword_overlap(answer: str, chunks) -> float:
+def _embedding_similarity(answer: str, chunks) -> float:
     if not chunks:
         return 0.0
 
-    context_text = " ".join(
-        c.get("chunk", "").lower() for c in chunks
-    )
-    words = [w for w in answer.lower().split() if len(w) > 3]
+    embeddings = get_embeddings()
+    answer_emb = np.array(embeddings.embed_query(answer))
 
-    if not words:
-        return 0.0
+    max_sim = 0.0
+    for c in chunks:
+        chunk_text = c.get("chunk", "")
+        if not chunk_text:
+            continue
+        chunk_emb = np.array(embeddings.embed_query(chunk_text[:2000]))
+        cos_sim = np.dot(answer_emb, chunk_emb) / (
+            np.linalg.norm(answer_emb) * np.linalg.norm(chunk_emb) + 1e-10
+        )
+        max_sim = max(max_sim, float(cos_sim))
 
-    matches = sum(1 for w in words if w in context_text)
-    return matches / len(words)
+    return max_sim
 
 
 def _compute_llm_confidence(answer: str, chunks):
     if not answer:
         return "low", 0.0
 
-    # Failure detection
     if _detect_failure(answer):
         return "low", 0.2
 
-    overlap = _keyword_overlap(answer, chunks)
+    sim = _embedding_similarity(answer, chunks)
 
-    # Heuristic thresholds
-    if overlap > 0.35:
+    if sim > 0.75:
         return "high", 0.9
-    elif overlap > 0.2:
+    elif sim > 0.5:
         return "medium", 0.65
     else:
         return "low", 0.4
@@ -132,7 +137,7 @@ async def query_llama(
         if debug:
             response["debug"] = {
                 "raw_answer": rag_result.get("llm_answer"),
-                "overlap_score": _keyword_overlap(answer, chunks),
+                "embedding_sim": _embedding_similarity(answer, chunks),
                 "num_chunks": len(chunks),
             }
 

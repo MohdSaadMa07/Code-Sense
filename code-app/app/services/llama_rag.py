@@ -3,7 +3,7 @@ from app.services.storage import get_vectorstore
 from pathlib import Path
 import re
 
-print("🔥 USING NEW RAG FILE")
+print("[LLAMA-RAG] Using new RAG file")
 
 # ---------------------------
 # Model Setup

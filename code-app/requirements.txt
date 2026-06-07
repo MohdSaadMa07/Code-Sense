@@ -13,4 +13,5 @@ python-dotenv
 requests
 tree-sitter
 tree-sitter-languages
+numpy
 

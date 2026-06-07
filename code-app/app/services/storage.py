@@ -1,5 +1,6 @@
 import hashlib
 import os
+from pathlib import Path
 
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -8,6 +9,8 @@ from app.services.ast_chunker import chunk_documents_with_ast
 
 _embeddings = None
 _vectorstore = None
+
+VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
 def get_embeddings():
     global _embeddings
@@ -21,7 +24,19 @@ def get_vectorstore():
     global _vectorstore
     if _vectorstore is None:
         embeddings = get_embeddings()
-        # Proper empty FAISS init (from_texts([], ...) deprecated/buggy)
+        # Try loading existing index from disk first
+        if os.path.isdir(VECTORSTORE_PATH) and os.path.isfile(os.path.join(VECTORSTORE_PATH, "index.faiss")):
+            try:
+                _vectorstore = FAISS.load_local(
+                    VECTORSTORE_PATH,
+                    embeddings,
+                    allow_dangerous_deserialization=True,
+                )
+                print(f"[OK] Loaded existing FAISS index ({_vectorstore.index.ntotal} vectors) from {VECTORSTORE_PATH}")
+                return _vectorstore
+            except Exception as e:
+                print(f"[WARN] Could not load existing FAISS index, creating new empty one: {e}")
+        # Fall back to fresh empty FAISS init
         dummy_embedding = embeddings.embed_query(" ")
         dimension = len(dummy_embedding)
         import faiss
@@ -132,4 +147,6 @@ def store_documents(documents: list[Document], chunk_size=1500, chunk_overlap=15
 
     if ingestible_chunks:
         vs.add_documents(ingestible_chunks)
+        vs.save_local(VECTORSTORE_PATH)
+        print(f"[SAVE] Saved FAISS index ({vs.index.ntotal} vectors) to {VECTORSTORE_PATH}")
     return len(ingestible_chunks)

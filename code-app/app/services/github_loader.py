@@ -63,7 +63,7 @@ def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 5
 
     for item in items:
         if len(collected_files) >= max_files:
-            print("⚠️ Max file limit reached")
+            print("[WARN] Max file limit reached")
             break
         if item["type"] == "dir":
             collected_files.extend(

@@ -50,13 +50,13 @@ function SearchResult({ data }) {
   if (!data) return <EmptyState text="Run a vector search to see semantic matches." />;
   if (data.error) return <ErrorState text={data.error} />;
 
-  if (!Array.isArray(data.llm_answer) || data.llm_answer.length === 0) {
+  if (!Array.isArray(data.results) || data.results.length === 0) {
     return <EmptyState text="No similar chunks found for this query." />;
   }
 
   return (
     <div className="result-list">
-      {data.llm_answer.map((item) => (
+      {data.results.map((item) => (
         <article className="result-item" key={`${item.rank}-${item.metadata?.chunk_id || item.score}`}>
           <div className="result-item-top">
             <span className="result-rank">Rank {item.rank}</span>
@@ -78,7 +78,7 @@ function LlamaResult({ data }) {
     <div className="result-panel">
       <div className="result-answer-block">
         <h4>Answer</h4>
-        <pre className="result-answer">{data.llm_answer || 'NOT FOUND IN CONTEXT'}</pre>
+        <pre className="result-answer">{data.result || 'NOT FOUND IN CONTEXT'}</pre>
       </div>
       {Array.isArray(data.context) && data.context.length > 0 && (
         <div className="result-context-block">
