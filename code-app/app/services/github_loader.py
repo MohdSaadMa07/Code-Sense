@@ -1,4 +1,5 @@
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import os
 from app.services.storage import store_documents
@@ -57,36 +58,48 @@ def fetch_repo_contents(owner, repo, path=""):
         return []
 
 
+def _download_file(item: dict) -> dict | None:
+    try:
+        resp = requests.get(item["download_url"], headers=get_headers(), timeout=15)
+        if resp.status_code != 200:
+            print(f"  Failed: {item['path']} ({resp.status_code})")
+            return None
+        raw = resp.content
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("utf-8", errors="replace")
+        return {"path": item["path"], "content": text}
+    except requests.exceptions.RequestException as e:
+        print(f"  Error: {item['path']} — {e}")
+        return None
+
+
 def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 500) -> list[dict]:
-    collected_files = []
+    # Collect all file items recursively first (fast)
+    file_items = []
+    _gather_file_items(owner, repo, path, max_files, file_items)
+
+    # Download all files in parallel
+    collected = []
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futs = {pool.submit(_download_file, item): item for item in file_items}
+        for fut in as_completed(futs):
+            result = fut.result()
+            if result:
+                collected.append(result)
+    return collected
+
+
+def _gather_file_items(owner: str, repo: str, path: str, max_files: int, out: list):
     items = fetch_repo_contents(owner, repo, path)
-
     for item in items:
-        if len(collected_files) >= max_files:
-            print("[WARN] Max file limit reached")
-            break
+        if len(out) >= max_files:
+            return
         if item["type"] == "dir":
-            collected_files.extend(
-                collect_repo_files(owner, repo, item["path"], max_files)
-            )
+            _gather_file_items(owner, repo, item["path"], max_files, out)
         elif item["type"] == "file" and is_allowed_file(item["path"]):
-            try:
-                file_response = requests.get(
-                    item["download_url"],
-                    headers=get_headers(),
-                    timeout=10
-                )
-                if file_response.status_code == 200:
-                    collected_files.append({
-                        "path": item["path"],
-                        "content": file_response.text
-                    })
-                else:
-                    print(f"⚠️ Failed file: {item['path']}")
-            except requests.exceptions.RequestException as e:
-                print(f"❌ File fetch error: {e}")
-
-    return collected_files
+            out.append(item)
 
 
 # ✅ FIX: Deduplicate by (path, content) before storing.

@@ -20,6 +20,15 @@ def get_embeddings():
         )
     return _embeddings
 
+def clear_vectorstore():
+    global _vectorstore
+    _vectorstore = None
+    if os.path.isdir(VECTORSTORE_PATH):
+        import shutil
+        shutil.rmtree(VECTORSTORE_PATH)
+        print(f"[CLEAR] Removed vectorstore at {VECTORSTORE_PATH}")
+
+
 def get_vectorstore():
     global _vectorstore
     if _vectorstore is None:
@@ -132,7 +141,7 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-def store_documents(documents: list[Document], chunk_size=1500, chunk_overlap=150):
+def store_documents(documents: list[Document], chunk_size=2000, chunk_overlap=50):
     if not documents:
         raise ValueError("No documents provided")
 

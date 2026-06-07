@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 const API_BASE = 'http://127.0.0.1:8000';
@@ -85,11 +85,130 @@ function LlamaResult({ data }) {
   );
 }
 
+function ArchitecturePanel() {
+  const [diagram, setDiagram] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const containerRef = useRef(null);
+  const [mermaidLoaded, setMermaidLoaded] = useState(false);
+
+  useEffect(() => {
+    if (window.mermaid) {
+      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', htmlLabels: false, flowchart: { useMaxWidth: false, htmlLabels: false, nodeSpacing: 80, rankSpacing: 100 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '18px' } });
+      setMermaidLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    script.onload = () => {
+      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', htmlLabels: false, flowchart: { useMaxWidth: false, htmlLabels: false, nodeSpacing: 80, rankSpacing: 100 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '18px' } });
+      setMermaidLoaded(true);
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!diagram || !mermaidLoaded || !containerRef.current) return;
+    const h = containerRef.current;
+    h.innerHTML = '';
+    const pre = document.createElement('div');
+    pre.className = 'mermaid';
+    pre.textContent = diagram;
+    h.appendChild(pre);
+    window.mermaid.run({ nodes: [pre] }).then(() => {
+      if (h.querySelector('.mermaid svg') === null && h.textContent.includes('Syntax error')) {
+        console.error('Mermaid syntax error in diagram source');
+        h.innerHTML = '<p class="hint">Could not render diagram</p>';
+      }
+    }).catch((err) => {
+      console.error('Mermaid render error:', err);
+      h.innerHTML = '<p class="hint">Could not render diagram</p>';
+    });
+  }, [diagram, mermaidLoaded]);
+
+  const generate = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setDiagram(null);
+    setInfo(null);
+    try {
+      const res = await requestJson(`${API_BASE}/architecture/generate`, { method: 'POST' });
+      setDiagram(res.mermaid);
+      setInfo(res);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return (
+    <div>
+      <button className="primary-btn" onClick={generate} disabled={loading} style={{ marginBottom: 14 }}>
+        {loading ? 'Analyzing...' : 'Generate'}
+      </button>
+      {error && <div className="status-badge error" style={{ marginBottom: 10 }}>{error}</div>}
+      {loading && <p className="hint">Analyzing project structure and detecting modules...</p>}
+
+      {info && (
+        <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {info.layers && (
+            <div>
+              <p className="ctx-heading">Layers</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {Object.entries(info.layers).map(([layer, modules]) =>
+                  modules.length > 0 && (
+                    <span key={layer} className="flow-step" style={{ textTransform: 'capitalize' }}>
+                      {layer} ({modules.length})
+                    </span>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+          {info.entry_points && info.entry_points.length > 0 && (
+            <div>
+              <p className="ctx-heading">Entry Points</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {info.entry_points.map((ep) => (
+                  <span key={ep} className="flow-step" style={{ borderColor: '#34d399' }}>
+                    {ep.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {info.tech && (
+            <div>
+              <p className="ctx-heading">Technology Stack</p>
+              <div className="stats-grid">
+                {Object.entries(info.tech).map(([layer, items]) => (
+                  <div className="stat-box" key={layer}>
+                    <span style={{ textTransform: 'capitalize' }}>{layer}</span>
+                    <strong>{(Array.isArray(items) ? items : [items]).join(', ')}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="hint" style={{ fontSize: '0.72rem' }}>
+            {info.modules_found} modules &middot; {info.dependencies || 0} dependencies
+          </p>
+        </div>
+      )}
+
+      <div ref={containerRef} className="mermaid-container" />
+    </div>
+  );
+}
+
 const NavIcon = ({ name }) => {
   const paths = {
     ingest: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
     search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
     qa: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    tree: 'M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z',
   };
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -220,6 +339,7 @@ function App() {
           <nav className="side-nav">
             {[
               { k: 'ingest', l: 'Ingest' },
+              { k: 'tree', l: 'Modules' },
               { k: 'search', l: 'Search' },
               { k: 'qa', l: 'Q&A' },
             ].map(t => (
@@ -244,7 +364,7 @@ function App() {
         <main className="main-area">
 
           {tab === 'ingest' && (
-            <section className="feature-page">
+            <section className="feature-page fade-in">
               <div className="feature-header">
                 <h2>Ingest Repository</h2>
                 <p>Fetch repository files and build searchable vector chunks.</p>
@@ -264,12 +384,34 @@ function App() {
                   </button>
                 </div>
                 <IngestResult data={results.ingest} />
+                {results.ingest && !results.ingest.error && (
+                  <button className="ghost-btn small" onClick={async () => {
+                    try {
+                      await requestJson(`${API_BASE}/architecture/clear`, { method: 'POST' });
+                      setResults(s => ({ ...s, ingest: null }));
+                    } catch (e) {
+                      setResults(s => ({ ...s, ingest: { error: e.message } }));
+                    }
+                  }} style={{ marginTop: 8 }}>
+                    Reset vectorstore
+                  </button>
+                )}
               </div>
             </section>
           )}
 
+          {tab === 'tree' && (
+            <section className="feature-page fade-in">
+              <div className="feature-header">
+                <h2>Module Graph</h2>
+                <p>Visualize codebase modules, layers, and dependencies.</p>
+              </div>
+              <ArchitecturePanel />
+            </section>
+          )}
+
           {tab === 'search' && (
-            <section className="feature-page">
+            <section className="feature-page fade-in">
               <div className="feature-header">
                 <h2>Semantic Search</h2>
                 <p>Find code by meaning, not just keywords.</p>
@@ -290,7 +432,7 @@ function App() {
           )}
 
           {tab === 'qa' && (
-            <section className="feature-page">
+            <section className="feature-page fade-in">
               <div className="feature-header">
                 <h2>Grounded Q&A</h2>
                 <p>Ask questions answered from your actual codebase.</p>
