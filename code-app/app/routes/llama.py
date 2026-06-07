@@ -1,10 +1,9 @@
+import re
 from typing import Optional
-import numpy as np
 
 from fastapi import APIRouter, Query, HTTPException, Body
 from pydantic import BaseModel
 from app.services.llama_rag import rag_query
-from app.services.storage import get_embeddings
 
 router = APIRouter(prefix="/llama", tags=["LLaMA"])
 
@@ -28,27 +27,6 @@ def _detect_failure(answer: str) -> bool:
     return any(p in answer_lower for p in bad_phrases)
 
 
-def _embedding_similarity(answer: str, chunks) -> float:
-    if not chunks:
-        return 0.0
-
-    embeddings = get_embeddings()
-    answer_emb = np.array(embeddings.embed_query(answer))
-
-    max_sim = 0.0
-    for c in chunks:
-        chunk_text = c.get("chunk", "")
-        if not chunk_text:
-            continue
-        chunk_emb = np.array(embeddings.embed_query(chunk_text[:2000]))
-        cos_sim = np.dot(answer_emb, chunk_emb) / (
-            np.linalg.norm(answer_emb) * np.linalg.norm(chunk_emb) + 1e-10
-        )
-        max_sim = max(max_sim, float(cos_sim))
-
-    return max_sim
-
-
 def _compute_llm_confidence(answer: str, chunks):
     if not answer:
         return "low", 0.0
@@ -56,14 +34,40 @@ def _compute_llm_confidence(answer: str, chunks):
     if _detect_failure(answer):
         return "low", 0.2
 
-    sim = _embedding_similarity(answer, chunks)
+    from app.services.llama_rag import get_llm
 
-    if sim > 0.75:
-        return "high", 0.9
-    elif sim > 0.5:
-        return "medium", 0.65
+    context_text = "\n\n".join(
+        c.get("chunk", "")[:600] for c in (chunks or []) if c.get("chunk")
+    )
+
+    eval_prompt = f"""Rate 1-5 how well the provided context supports the answer.
+Only respond with a single number.
+
+CONTEXT:
+{context_text or "(no context)"}
+
+ANSWER:
+{answer}
+
+RATING (1-5):"""
+
+    try:
+        llm = get_llm()
+        response = llm(eval_prompt, max_tokens=5, temperature=0.0)
+        raw = response["choices"][0]["text"].strip()
+        match = re.search(r'[1-5]', raw)
+        rating = int(match.group()) if match else 3
+    except Exception:
+        rating = 3
+
+    score = rating / 5
+
+    if rating >= 4:
+        return "high", score
+    elif rating >= 3:
+        return "medium", score
     else:
-        return "low", 0.4
+        return "low", score
 
 
 def _fallback_from_context(chunks):
@@ -137,7 +141,7 @@ async def query_llama(
         if debug:
             response["debug"] = {
                 "raw_answer": rag_result.get("llm_answer"),
-                "embedding_sim": _embedding_similarity(answer, chunks),
+                "confidence": {"label": confidence_label, "score": confidence_score},
                 "num_chunks": len(chunks),
             }
 

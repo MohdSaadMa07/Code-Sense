@@ -148,12 +148,12 @@ def rag_query(query: str, top_k: int = 3):
     prompt = f"""
 You are a code analysis assistant.
 
-STRICT RULES:
-- Always answer using the given context
+RULES:
+- Answer using the given context only
 - If code exists → explain what it does
 - Mention function names clearly
-- Even partial info → still answer
-- Do NOT say "not found"
+- Extract whatever relevant info you can from the context
+- If the context has nothing related to the question, say "No relevant information found in the codebase" — do not make up answers
 
 CONTEXT:
 {context}
