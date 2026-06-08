@@ -4,14 +4,11 @@ langchain
 langchain-community
 langchain-huggingface
 langchain-core
-llama-cpp-python
 faiss-cpu
 sentence-transformers
 pydantic
 python-multipart
 python-dotenv
 requests
-tree-sitter
-tree-sitter-languages
 numpy
-
+anthropic

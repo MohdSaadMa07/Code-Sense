@@ -16,70 +16,40 @@ class LlamaQueryRequest(BaseModel):
 
 
 # ---------------------------
-# Confidence Helpers
+# Confidence (heuristic)
 # ---------------------------
 def _detect_failure(answer: str) -> bool:
-    bad_phrases = [
-    "i don't know",
-    "cannot answer"
-]
-    answer_lower = answer.lower()
-    return any(p in answer_lower for p in bad_phrases)
+    bad = ["i don't know", "cannot answer", "not relevant", "insufficient"]
+    return any(p in answer.lower() for p in bad)
 
 
-def _compute_llm_confidence(answer: str, chunks):
+def _compute_confidence(answer: str, chunks) -> tuple:
     if not answer:
         return "low", 0.0
 
     if _detect_failure(answer):
         return "low", 0.2
 
-    from app.services.llama_rag import get_llm
-
-    context_text = "\n\n".join(
-        c.get("chunk", "")[:600] for c in (chunks or []) if c.get("chunk")
-    )
-
-    eval_prompt = f"""Rate 1-5 how well the provided context supports the answer.
-Only respond with a single number.
-
-CONTEXT:
-{context_text or "(no context)"}
-
-ANSWER:
-{answer}
-
-RATING (1-5):"""
-
-    try:
-        llm = get_llm()
-        response = llm(eval_prompt, max_tokens=5, temperature=0.0)
-        raw = response["choices"][0]["text"].strip()
-        match = re.search(r'[1-5]', raw)
-        rating = int(match.group()) if match else 3
-    except Exception:
-        rating = 3
-
-    score = rating / 5
-
-    if rating >= 4:
-        return "high", score
-    elif rating >= 3:
-        return "medium", score
-    else:
-        return "low", score
-
-
-def _fallback_from_context(chunks):
     if not chunks:
-        return "No relevant context found."
+        return "medium", 0.5
 
-    snippets = []
-    for c in chunks[:2]:
-        text = c.get("chunk", "")
-        snippets.append(text[:200])
+    context_text = "\n\n".join(c.get("chunk", "")[:600] for c in chunks if c.get("chunk"))
+    context_lower = context_text.lower()
+    answer_lower = answer.lower()
 
-    return "LLM uncertain. Relevant context:\n\n" + "\n\n---\n\n".join(snippets)
+    words = [w for w in answer_lower.split() if len(w) > 3]
+    if not words:
+        return "low", 0.3
+
+    hits = sum(1 for w in words if w in context_lower)
+    ratio = hits / len(words)
+
+    if ratio >= 0.3:
+        return "high", min(0.95, 0.5 + ratio * 0.5)
+    elif ratio >= 0.1:
+        return "medium", 0.4 + ratio * 0.5
+    else:
+        return "low", max(0.15, ratio)
 
 
 # ---------------------------
@@ -87,14 +57,13 @@ def _fallback_from_context(chunks):
 # ---------------------------
 @router.post("/query")
 async def query_llama(
-    prompt: Optional[str] = Query(None, description="The question to ask LLaMA"),
+    prompt: Optional[str] = Query(None, description="The question to ask"),
     top_k: int = Query(3, description="Number of context chunks to retrieve"),
     include_context: bool = Query(False, description="Include retrieved context in response"),
     debug: bool = Query(False, description="Return debug info"),
     payload: Optional[LlamaQueryRequest] = Body(None),
 ):
     try:
-        # Accept either query parameters or JSON body for compatibility.
         if prompt is None and payload and payload.prompt:
             prompt = payload.prompt
         if payload and payload.top_k is not None:
@@ -112,20 +81,11 @@ async def query_llama(
         answer = rag_result.get("llm_answer", "")
         chunks = rag_result.get("retrieved_chunks", [])
 
-        # ---------------------------
-        # Confidence
-        # ---------------------------
-        confidence_label, confidence_score = _compute_llm_confidence(answer, chunks)
+        confidence_label, confidence_score = _compute_confidence(answer, chunks)
 
-        # ---------------------------
-        # Fallback if weak answer
-        # ---------------------------
         if confidence_label == "low":
-                answer = answer + "\n\n⚠ Low confidence (may be partially inferred from context)"
+            answer = answer + "\n\nLow confidence (may be partially inferred from context)"
 
-        # ---------------------------
-        # Response
-        # ---------------------------
         response = {
             "result": answer,
             "confidence": confidence_label,
@@ -150,4 +110,4 @@ async def query_llama(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLaMA query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
