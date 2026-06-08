@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
-const API_BASE = '';
+const API_BASE = window.location.origin === 'http://localhost:3000' ? 'http://127.0.0.1:8000' : '';
 
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);
