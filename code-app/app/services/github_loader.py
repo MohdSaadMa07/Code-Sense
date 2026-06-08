@@ -44,7 +44,11 @@ def fetch_repo_contents(owner, repo, path=""):
         response = requests.get(url, headers=get_headers(), timeout=10)
         print(f"STATUS: {response.status_code} | PATH: {path}")
         if response.status_code == 403:
-            raise Exception("GitHub API rate limit hit or unauthorized (check token)")
+            print(f"⚠️ Skipping path (403): {path}")
+            return []
+        if response.status_code == 404:
+            print(f"⚠️ Skipping path (404): {path}")
+            return []
         if response.status_code != 200:
             print(f"⚠️ Skipping path: {path} | Status: {response.status_code}")
             return []
