@@ -2,24 +2,24 @@ import os, re
 from openai import OpenAI
 from app.services.storage import get_vectorstore
 
-print("[RAG] Using GitHub Models (GPT-4o-mini)")
+print("[RAG] Using Groq (Llama 3 70B)")
 
 _client = None
 
 def get_client():
     global _client
     if _client is None:
-        key = os.getenv("GITHUB_TOKEN")
+        key = os.getenv("GROQ_API_KEY")
         if not key:
-            raise RuntimeError("GITHUB_TOKEN not set — create a fine-grained PAT with Models: Read scope at github.com/settings/tokens")
+            raise RuntimeError("GROQ_API_KEY not set — add it to your HF Space secrets")
         try:
             _client = OpenAI(
-                base_url="https://models.inference.ai.azure.com",
+                base_url="https://api.groq.com/openai/v1",
                 api_key=key,
                 max_retries=2,
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize GitHub Models client: {e}")
+            raise RuntimeError(f"Failed to initialize Groq client: {e}")
     return _client
 
 
@@ -117,7 +117,7 @@ QUESTION:
 
     client = get_client()
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="llama3-70b-8192",
         max_tokens=600,
         temperature=0.0,
         messages=[{"role": "user", "content": prompt}],
