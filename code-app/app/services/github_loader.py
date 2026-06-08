@@ -12,14 +12,10 @@ IGNORED_FOLDERS = {".github", "tests", "__tests__", "static/vendors", "static/ve
 
 
 def get_headers():
-    headers = {
+    return {
         "Accept": "application/vnd.github+json",
         "User-Agent": "fastapi-rag-app"
     }
-    github_token = os.getenv("GITHUB_TOKEN")
-    if github_token:
-        headers["Authorization"] = f"Bearer {github_token}"
-    return headers
 
 
 def parse_github_repo(url: str) -> tuple[str, str]:
