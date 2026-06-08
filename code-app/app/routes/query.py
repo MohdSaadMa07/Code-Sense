@@ -114,9 +114,64 @@ def _compute_confidence(query: str, ranked_results, top_k: int):
 # ---------------------------
 # Main Endpoint
 # ---------------------------
+def search_query(query: str, top_k: int = 3):
+    vectorstore = get_vectorstore()
+
+    results = vectorstore.similarity_search_with_score(
+        query,
+        k=top_k * 4,
+    )
+
+    ranked_results = sorted(
+        results,
+        key=lambda item: _adjusted_score(query, item[0], item[1])
+    )
+
+    seen = set()
+    formatted_results = []
+
+    for rank, (doc, score) in enumerate(ranked_results, start=1):
+        content = (doc.page_content or "").strip()
+        if not content or content in seen:
+            continue
+        seen.add(content)
+        metadata = doc.metadata or {}
+        formatted_results.append({
+            "rank": rank,
+            "chunk": content,
+            "score": float(score),
+            "metadata": {
+                "path": metadata.get("path") or metadata.get("filename"),
+                "chunk_type": metadata.get("chunk_type"),
+                "symbol": metadata.get("symbol"),
+                "symbol_kind": metadata.get("symbol_kind"),
+                "language": metadata.get("language"),
+                "node_type": metadata.get("node_type"),
+                "start_line": metadata.get("start_line"),
+                "end_line": metadata.get("end_line"),
+                "fallback_reason": metadata.get("fallback_reason"),
+                "parse_quality": metadata.get("parse_quality"),
+                "chunk_id": metadata.get("chunk_id"),
+            },
+        })
+        if len(formatted_results) >= top_k:
+            break
+
+    confidence_label, confidence_score = _compute_confidence(
+        query, ranked_results, top_k
+    )
+
+    return {
+        "query": query,
+        "confidence": confidence_label,
+        "confidence_score": confidence_score,
+        "results": formatted_results
+    }
+
+
 @router.post("/")
 def query_vectorstore(request: QueryRequest):
-    vectorstore = get_vectorstore()
+    return search_query(request.query, request.top_k)
 
     # Retrieve more for reranking
     results = vectorstore.similarity_search_with_score(

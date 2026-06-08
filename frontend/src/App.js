@@ -1,7 +1,14 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
-const API_BASE = window.location.origin === 'http://localhost:3000' ? 'http://127.0.0.1:8000' : '';
+const API_BASE = window.location.origin === 'http://localhost:3000'
+  ? 'http://127.0.0.1:8000'
+  : window.location.origin + window.location.pathname.replace(/\/+$/, '');
+
+function apiUrl(action, params = {}) {
+  const qs = new URLSearchParams({ action, ...params }).toString();
+  return `${API_BASE}/?${qs}`;
+}
 
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);
@@ -133,7 +140,7 @@ function ArchitecturePanel() {
     setDiagram(null);
     setInfo(null);
     try {
-      const res = await requestJson(`${API_BASE}/architecture/generate`, { method: 'POST' });
+      const res = await requestJson(apiUrl('architecture'));
       setDiagram(res.mermaid);
       setInfo(res);
     } catch (err) {
@@ -237,11 +244,7 @@ function App() {
     if (!repoUrl.trim()) return;
     setLoading(s => ({ ...s, ingest: true }));
     try {
-      const data = await requestJson(`${API_BASE}/github/ingest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_url: repoUrl.trim(), max_files: Number(maxFiles) }),
-      });
+      const data = await requestJson(apiUrl('ingest', { repo_url: repoUrl.trim(), max_files: Number(maxFiles) }));
       setResults(s => ({ ...s, ingest: data }));
     } catch (err) {
       setResults(s => ({ ...s, ingest: { error: `Ingest failed: ${err.message}` } }));
@@ -254,11 +257,7 @@ function App() {
     if (!query.trim()) return;
     setLoading(s => ({ ...s, query: true }));
     try {
-      const data = await requestJson(`${API_BASE}/query/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query.trim(), top_k: Number(topK) }),
-      });
+      const data = await requestJson(apiUrl('search', { query: query.trim(), top_k: Number(topK) }));
       setResults(s => ({ ...s, query: data }));
     } catch (err) {
       setResults(s => ({ ...s, query: { error: `Search failed: ${err.message}` } }));
@@ -271,12 +270,7 @@ function App() {
     if (!gptPrompt.trim()) return;
     setLoading(s => ({ ...s, gpt: true }));
     try {
-      const params = new URLSearchParams({
-        prompt: gptPrompt.trim(),
-        top_k: String(Number(topK)),
-        include_context: 'true',
-      });
-      const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, { method: 'POST' });
+      const data = await requestJson(apiUrl('query', { prompt: gptPrompt.trim(), top_k: Number(topK), include_context: 'true' }));
       setResults(s => ({ ...s, gpt: data }));
     } catch (err) {
       setResults(s => ({ ...s, gpt: { error: `GPT query failed: ${err.message}` } }));
@@ -398,7 +392,7 @@ function App() {
                 {results.ingest && !results.ingest.error && (
                   <button className="ghost-btn small" onClick={async () => {
                     try {
-                      await requestJson(`${API_BASE}/architecture/clear`, { method: 'POST' });
+                      await requestJson(apiUrl('clear'));
                       setResults(s => ({ ...s, ingest: null }));
                     } catch (e) {
                       setResults(s => ({ ...s, ingest: { error: e.message } }));
