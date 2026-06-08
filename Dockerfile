@@ -14,7 +14,7 @@ COPY code-app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY code-app/app ./app
-COPY --from=frontend /build/build ./frontend/build
+COPY --from=frontend /build/build /frontend/build
 
 ENV PYTHONPATH=/app
 EXPOSE 7860
