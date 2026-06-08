@@ -56,7 +56,7 @@ def _compute_confidence(answer: str, chunks) -> tuple:
 # Endpoint
 # ---------------------------
 @router.post("/query")
-async def query_gpt(
+def query_gpt(
     prompt: Optional[str] = Query(None, description="The question to ask"),
     top_k: int = Query(3, description="Number of context chunks to retrieve"),
     include_context: bool = Query(False, description="Include retrieved context in response"),

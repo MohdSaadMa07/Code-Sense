@@ -2,7 +2,7 @@ import os, re
 from openai import OpenAI
 from app.services.storage import get_vectorstore
 
-print("[RAG] Using GitHub Models (free)")
+print("[RAG] Using GitHub Models (GPT-4o-mini)")
 
 _client = None
 
@@ -11,12 +11,15 @@ def get_client():
     if _client is None:
         key = os.getenv("GITHUB_TOKEN")
         if not key:
-            raise RuntimeError("GITHUB_TOKEN not set")
-        _client = OpenAI(
-            base_url="https://models.inference.ai.azure.com",
-            api_key=key,
-        )
-    return _client
+            raise RuntimeError("GITHUB_TOKEN not set — create a fine-grained PAT with Models: Read scope at github.com/settings/tokens")
+        try:
+            _client = OpenAI(
+                base_url="https://models.inference.ai.azure.com",
+                api_key=key,
+                max_retries=2,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize GitHub Models client: {e}")
     return _client
 
 
