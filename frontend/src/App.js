@@ -53,7 +53,7 @@ function SearchResult({ data }) {
   );
 }
 
-function LlamaResult({ data }) {
+function GptResult({ data }) {
   if (!data) return <p className="hint">Ask a question to get an answer</p>;
   if (data.error) return <div className="status-badge error">{data.error}</div>;
   const isLow = data.confidence === 'low';
@@ -223,10 +223,10 @@ function App() {
   const [repoUrl, setRepoUrl] = useState('');
   const [maxFiles, setMaxFiles] = useState(500);
   const [query, setQuery] = useState('');
-  const [llamaPrompt, setLlamaPrompt] = useState('');
+  const [gptPrompt, setGptPrompt] = useState('');
   const [topK, setTopK] = useState(3);
-  const [loading, setLoading] = useState({ ingest: false, query: false, llama: false });
-  const [results, setResults] = useState({ ingest: null, query: null, llama: null });
+  const [loading, setLoading] = useState({ ingest: false, query: false, gpt: false });
+  const [results, setResults] = useState({ ingest: null, query: null, gpt: null });
 
   const isValidUrl = useMemo(() => {
     try { return !!new URL(repoUrl.trim()); }
@@ -267,21 +267,21 @@ function App() {
     }
   };
 
-  const handleLlama = async () => {
-    if (!llamaPrompt.trim()) return;
-    setLoading(s => ({ ...s, llama: true }));
+  const handleGpt = async () => {
+    if (!gptPrompt.trim()) return;
+    setLoading(s => ({ ...s, gpt: true }));
     try {
       const params = new URLSearchParams({
-        prompt: llamaPrompt.trim(),
+        prompt: gptPrompt.trim(),
         top_k: String(Number(topK)),
         include_context: 'true',
       });
-      const data = await requestJson(`${API_BASE}/llama/query?${params.toString()}`, { method: 'POST' });
-      setResults(s => ({ ...s, llama: data }));
+      const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, { method: 'POST' });
+      setResults(s => ({ ...s, gpt: data }));
     } catch (err) {
-      setResults(s => ({ ...s, llama: { error: `LLaMA query failed: ${err.message}` } }));
+      setResults(s => ({ ...s, gpt: { error: `GPT query failed: ${err.message}` } }));
     } finally {
-      setLoading(s => ({ ...s, llama: false }));
+      setLoading(s => ({ ...s, gpt: false }));
     }
   };
 
@@ -453,15 +453,15 @@ function App() {
                   <label>Question</label>
                   <input
                     className="input"
-                    value={llamaPrompt}
-                    onChange={e => setLlamaPrompt(e.target.value)}
+                    value={gptPrompt}
+                    onChange={e => setGptPrompt(e.target.value)}
                     placeholder="What does this project do?"
                   />
                 </div>
-                <button className="primary-btn" onClick={handleLlama} disabled={loading.llama}>
-                  {loading.llama ? 'Generating...' : 'Ask'}
+                <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt}>
+                  {loading.gpt ? 'Generating...' : 'Ask'}
                 </button>
-                <LlamaResult data={results.llama} />
+                <GptResult data={results.gpt} />
               </div>
             </section>
           )}

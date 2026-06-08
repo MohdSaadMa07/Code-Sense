@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from app.routes.ingest import router as ingest_router
 from app.routes.query import router as query_router
 from app.routes.github import router as github_router
-from app.routes.llama import router as llama_router
+from app.routes.gpt import router as gpt_router
 from app.routes.tree import router as symbols_router
 from app.routes.architecture import router as architecture_router
 
@@ -33,7 +33,7 @@ app.add_middleware(
 app.include_router(ingest_router)
 app.include_router(query_router)
 app.include_router(github_router)
-app.include_router(llama_router)
+app.include_router(gpt_router)
 app.include_router(symbols_router)
 app.include_router(architecture_router)
 
@@ -46,7 +46,7 @@ if FRONTEND_BUILD.is_dir():
     @app.get("/")
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str = ""):
-        if full_path.startswith("api/") or full_path.startswith("architecture/") or full_path.startswith("github/") or full_path.startswith("llama/") or full_path.startswith("ingest/") or full_path.startswith("query/"):
+        if full_path.startswith("api/") or full_path.startswith("architecture/") or full_path.startswith("github/") or full_path.startswith("gpt/") or full_path.startswith("ingest/") or full_path.startswith("query/"):
             return {"detail": "Not Found"}
         return FileResponse(str(FRONTEND_BUILD / "index.html"))
 else:

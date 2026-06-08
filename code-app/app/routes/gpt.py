@@ -3,9 +3,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException, Body
 from pydantic import BaseModel
-from app.services.llama_rag import rag_query
+from app.services.gpt_rag import rag_query
 
-router = APIRouter(prefix="/llama", tags=["LLaMA"])
+router = APIRouter(prefix="/gpt", tags=["GPT"])
 
 
 class LlamaQueryRequest(BaseModel):
@@ -56,7 +56,7 @@ def _compute_confidence(answer: str, chunks) -> tuple:
 # Endpoint
 # ---------------------------
 @router.post("/query")
-async def query_llama(
+async def query_gpt(
     prompt: Optional[str] = Query(None, description="The question to ask"),
     top_k: int = Query(3, description="Number of context chunks to retrieve"),
     include_context: bool = Query(False, description="Include retrieved context in response"),
