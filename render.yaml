@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: codesense
+    env: python
+    buildCommand: pip install -r requirements.txt && cd frontend && npm install && npm run build
+    startCommand: cd code-app && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.10.12"

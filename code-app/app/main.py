@@ -1,6 +1,8 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.routes.ingest import router as ingest_router
 from app.routes.query import router as query_router
 from app.routes.github import router as github_router
@@ -22,14 +24,7 @@ app = FastAPI()
 # Allow local frontend apps to call the API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,6 +37,19 @@ app.include_router(llama_router)
 app.include_router(symbols_router)
 app.include_router(architecture_router)
 
-@app.get("/")
-async def root():
-    return {"message": "FastAPI + MiniLM embeddings ready!"}
+# Serve built React frontend
+FRONTEND_BUILD = Path(__file__).resolve().parents[2] / "frontend" / "build"
+if FRONTEND_BUILD.is_dir():
+    app.mount("/static", StaticFiles(directory=str(FRONTEND_BUILD / "static"), check_dir=False), name="static")
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_BUILD), check_dir=False), name="assets")
+
+    @app.get("/")
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str = ""):
+        if full_path.startswith("api/") or full_path.startswith("architecture/") or full_path.startswith("github/") or full_path.startswith("llama/") or full_path.startswith("ingest/") or full_path.startswith("query/"):
+            return {"detail": "Not Found"}
+        return FileResponse(str(FRONTEND_BUILD / "index.html"))
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "FastAPI + MiniLM embeddings ready!"}

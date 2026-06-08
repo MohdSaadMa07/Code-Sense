@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = '';
 
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);
@@ -290,7 +290,13 @@ function App() {
       <div className="app">
         <main className="home">
           <nav className="topbar">
-            <span className="brand">CodeApp</span>
+            <span className="brand"><span className="brand-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+                <circle cx="12" cy="12" r="2"/>
+              </svg>
+            </span>CodeSense</span>
             <button className="ghost-btn" onClick={() => setPage('app')}>Launch</button>
           </nav>
           <section className="hero">
@@ -304,12 +310,11 @@ function App() {
               </button>
             </div>
             <div className="hero-visual">
-              <div className="code-window">
-                <div className="win-dots"><span/><span/><span/></div>
-                <div className="win-body">
-                  <div className="win-line w90"/><div className="win-line w70"/><div className="win-line w85"/><div className="win-line w50"/>
-                  <div className="win-line w90 blink"/><div className="win-line w75"/><div className="win-line w60"/>
-                </div>
+              <div className="hero-graphic">
+                <div className="hero-ring r1"/>
+                <div className="hero-ring r2"/>
+                <div className="hero-ring r3"/>
+                <div className="hero-ring r4"/>
               </div>
             </div>
           </section>
@@ -335,7 +340,13 @@ function App() {
     <div className="app">
       <div className="app-layout">
         <aside className="sidebar">
-          <span className="brand">CodeApp</span>
+          <span className="brand"><span className="brand-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+                <circle cx="12" cy="12" r="2"/>
+              </svg>
+            </span>CodeSense</span>
           <nav className="side-nav">
             {[
               { k: 'ingest', l: 'Ingest' },
