@@ -1,18 +1,21 @@
 import os, re
-from anthropic import Anthropic
+from openai import OpenAI
 from app.services.storage import get_vectorstore
 
-print("[RAG] Using Claude Sonnet")
+print("[RAG] Using GitHub Models (free)")
 
 _client = None
 
 def get_client():
     global _client
     if _client is None:
-        key = os.getenv("ANTHROPIC_API_KEY")
+        key = os.getenv("GITHUB_TOKEN")
         if not key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set — add it in Render dashboard or your .env")
-        _client = Anthropic(api_key=key)
+            raise RuntimeError("GITHUB_TOKEN not set")
+        _client = OpenAI(
+            base_url="https://models.inference.ai.azure.com",
+            api_key=key,
+        )
     return _client
     return _client
 
@@ -110,14 +113,14 @@ QUESTION:
 {query}"""
 
     client = get_client()
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=600,
         temperature=0.0,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    answer = response.content[0].text.strip()
+    answer = response.choices[0].message.content.strip()
     answer = answer.split("CONTEXT:")[0].strip()
 
     if not _is_grounded(answer, context):

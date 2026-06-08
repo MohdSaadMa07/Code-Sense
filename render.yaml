@@ -9,5 +9,3 @@ services:
         value: "1"
       - key: PYTHON_VERSION
         value: "3.10.12"
-      - key: ANTHROPIC_API_KEY
-        sync: false
