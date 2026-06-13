@@ -12,25 +12,28 @@ RAG-powered code analysis tool. Ingest any GitHub repository, search semanticall
 
 ## Screenshots
 
+<img width="1917" height="847" alt="image" src="https://github.com/user-attachments/assets/08c9a708-5319-4f2e-bfee-e58e37f85558" />
+
 ### Connect Repo
-![Connect Repo](docs/screenshots/connect-repo.png)
+<img width="1917" height="847" alt="image" src="https://github.com/user-attachments/assets/0a189809-eb46-4c10-ae81-f64d90b4e7e0" />
+
 Paste a GitHub URL, set max files, and ingest. Stats show repo name, files fetched, chunks generated, and a sample file path.
 
 ### Deep Search
-![Deep Search](docs/screenshots/deep-search.png)
+<img width="1917" height="847" alt="image" src="https://github.com/user-attachments/assets/2f248ea7-fcd6-4e81-ba4d-4c0441b1d2ac" />
+
 Enter a semantic query. Results display ranked chunks with similarity score, file path, and highlighted code content.
 
 ### Ask Codebase
-![Ask Codebase](docs/screenshots/ask-codebase.png)
+<img width="1917" height="862" alt="image" src="https://github.com/user-attachments/assets/43b63adf-996e-45eb-8cd9-2f2ced888b54" />
+
 Type a question against the ingested code. The answer box shows LLM response with confidence badge (high/medium/low) and expandable context sources.
 
 ### Architecture
-![Architecture](docs/screenshots/architecture.png)
+<img width="1031" height="827" alt="image" src="https://github.com/user-attachments/assets/2fa48603-4461-401f-84f6-f296bf36f230" />
+
 Mermaid flow diagram grouped by Frontend/Backend/External layers. Module cards show route summaries. Entry points and tech stack breakdown listed below the diagram.
 
-### Sign In
-![Sign In](docs/screenshots/sign-in.png)
-Google one-tap auth in the sidebar. Signed-in users see their avatar, name, and conversation list scoped to the current repository.
 
 ## Tech Stack
 
