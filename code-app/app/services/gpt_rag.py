@@ -2,7 +2,7 @@ import os, re
 from openai import OpenAI
 from app.services.storage import get_vectorstore
 
-print("[RAG] Using Groq (Llama 3 70B)")
+print("[RAG] Using Groq (GPT-OSS 120B)")
 
 _client = None
 
@@ -117,7 +117,7 @@ QUESTION:
 
     client = get_client()
     response = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="openai/gpt-oss-120b",
         max_tokens=600,
         temperature=0.0,
         messages=[{"role": "user", "content": prompt}],

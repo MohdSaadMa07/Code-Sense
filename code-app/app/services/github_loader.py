@@ -1,3 +1,9 @@
+import io, sys
+if isinstance(sys.stdout, io.TextIOWrapper) and sys.stdout.encoding and "utf" not in sys.stdout.encoding.lower():
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if isinstance(sys.stderr, io.TextIOWrapper) and sys.stderr.encoding and "utf" not in sys.stderr.encoding.lower():
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
@@ -12,10 +18,14 @@ IGNORED_FOLDERS = {".github", "tests", "__tests__", "static/vendors", "static/ve
 
 
 def get_headers():
-    return {
+    h = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "fastapi-rag-app"
     }
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    return h
 
 
 def parse_github_repo(url: str) -> tuple[str, str]:

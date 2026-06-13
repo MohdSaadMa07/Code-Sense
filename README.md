@@ -1,13 +1,3 @@
----
-title: Code Sensee
-emoji: ⚡
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # CodeSense
 
 RAG-powered code analysis tool. Ingest any GitHub repo, ask questions in natural language, get answers grounded in your actual codebase.

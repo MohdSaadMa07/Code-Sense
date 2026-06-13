@@ -1,14 +1,10 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './App.css';
+import { AuthProvider, useAuth, authHeaders } from './AuthContext';
 
-const API_BASE = window.location.origin === 'http://localhost:3000'
-  ? 'http://127.0.0.1:8000'
-  : window.location.origin + window.location.pathname.replace(/\/+$/, '');
-
-function apiUrl(action, params = {}) {
-  const qs = new URLSearchParams({ action, ...params }).toString();
-  return `${API_BASE}/?${qs}`;
-}
+const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '8000' ? 'http://127.0.0.1:8000' : '';
 
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);
@@ -24,6 +20,82 @@ async function requestJson(url, options = {}) {
     throw new Error(detail);
   }
   return data;
+}
+
+function AuthButton() {
+  const { user, loading, signOut, promptGoogleSignIn } = useAuth();
+
+  if (loading) return <div className="auth-btn-placeholder" />;
+  if (user) {
+    return (
+      <div className="auth-user" title={user.email}>
+        {user.picture && <img src={user.picture} alt="" className="auth-avatar" referrerPolicy="no-referrer" />}
+        <span className="auth-name">{user.name}</span>
+        <button className="ghost-btn small" onClick={signOut}>Sign out</button>
+      </div>
+    );
+  }
+  return (
+    <div className="auth-google-btn">
+      <button className="ghost-btn" onClick={promptGoogleSignIn}>Sign in with Google</button>
+    </div>
+  );
+}
+
+function ConversationsPanel({ activeConv, onSelect, onNew, repoUrl }) {
+  const { user, token } = useAuth();
+  const [convs, setConvs] = useState([]);
+
+  const fetchConvs = useCallback(async () => {
+    if (!user) { setConvs([]); return; }
+    try {
+      const data = await requestJson(`${API_BASE}/conversations/`, { headers: authHeaders(token) });
+      setConvs(data);
+    } catch { setConvs([]); }
+  }, [user, token]);
+
+  useEffect(() => { fetchConvs(); }, [fetchConvs]);
+
+  const delConv = async (id) => {
+    try {
+      await requestJson(`${API_BASE}/conversations/${id}`, { method: 'DELETE', headers: authHeaders(token) });
+      if (activeConv === id) onSelect(null);
+      fetchConvs();
+    } catch { }
+  };
+
+  const filteredConvs = useMemo(() => {
+    return repoUrl ? convs.filter((c) => c.repo_url === repoUrl) : convs;
+  }, [convs, repoUrl]);
+
+  if (!user) return null;
+
+  return (
+    <div className="conv-panel">
+      <div className="conv-header">
+        <span className="conv-title-label">Conversations</span>
+        <button className="ghost-btn small" disabled={!repoUrl} title={repoUrl ? '' : 'Ingest a repo first'} onClick={async () => {
+          try {
+            const headers = { ...authHeaders(token), 'Content-Type': 'application/json' };
+            const body = repoUrl ? { repo_url: repoUrl } : {};
+            const data = await requestJson(`${API_BASE}/conversations/`, { method: 'POST', headers, body: JSON.stringify(body) });
+            onSelect(data.id);
+            fetchConvs();
+          } catch { }
+        }}>New</button>
+      </div>
+      {repoUrl && <div className="conv-repo-label">{repoUrl.replace('https://github.com/', '')}</div>}
+      <div className="conv-list">
+        {filteredConvs.length === 0 && <span className="conv-empty">{repoUrl ? 'No conversations for this repo' : 'No conversations yet'}</span>}
+        {filteredConvs.map((c) => (
+          <div key={c.id} className={`conv-item ${activeConv === c.id ? 'active' : ''}`} onClick={() => onSelect(c.id)}>
+            <span className="conv-title">{c.title}</span>
+            <button className="conv-del" onClick={(e) => { e.stopPropagation(); delConv(c.id); }} title="Delete">&times;</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function IngestResult({ data }) {
@@ -46,16 +118,25 @@ function SearchResult({ data }) {
     return <p className="hint">No similar chunks found</p>;
   return (
     <div className="result-list">
-      {data.results.map((item) => (
-        <div className="chunk-card" key={`${item.rank}-${item.metadata?.chunk_id || item.score}`}>
-          <div className="chunk-meta">
-            <span className="chunk-rank">#{item.rank}</span>
-            <span className="chunk-score">{Number(item.score).toFixed(3)}</span>
+      {data.results.map((item) => {
+        const path = item.metadata?.path || '';
+        const ext = path.split('.').pop().toLowerCase();
+        const isMarkdown = ext === 'md';
+        const renderContent = isMarkdown ? item.chunk : `\`\`\`${ext}\n${item.chunk}\n\`\`\``;
+
+        return (
+          <div className="chunk-card" key={`${item.rank}-${item.metadata?.chunk_id || item.score}`}>
+            <div className="chunk-meta">
+              <span className="chunk-rank">#{item.rank}</span>
+              <span className="chunk-score">{Number(item.score).toFixed(3)}</span>
+            </div>
+            <p className="chunk-path">{path || 'unknown'}</p>
+            <div className="chunk-code">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderContent}</ReactMarkdown>
+            </div>
           </div>
-          <p className="chunk-path">{item.metadata?.path || 'unknown'}</p>
-          <pre className="chunk-code">{item.chunk}</pre>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -75,7 +156,9 @@ function GptResult({ data }) {
             </span>
           )}
         </div>
-        <pre className="answer-text">{data.result || 'No answer'}</pre>
+        <div className="answer-text">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.result || 'No answer'}</ReactMarkdown>
+        </div>
       </div>
       {Array.isArray(data.context) && data.context.length > 0 && (
         <div className="ctx-section">
@@ -140,7 +223,7 @@ function ArchitecturePanel() {
     setDiagram(null);
     setInfo(null);
     try {
-      const res = await requestJson(apiUrl('architecture'));
+      const res = await requestJson(`${API_BASE}/architecture/generate`, { method: 'POST' });
       setDiagram(res.mermaid);
       setInfo(res);
     } catch (err) {
@@ -224,16 +307,18 @@ const NavIcon = ({ name }) => {
   );
 };
 
-function App() {
+function AppInner() {
+  const { user, token } = useAuth();
   const [page, setPage] = useState('home');
   const [tab, setTab] = useState('ingest');
   const [repoUrl, setRepoUrl] = useState('');
   const [maxFiles, setMaxFiles] = useState(500);
   const [query, setQuery] = useState('');
   const [gptPrompt, setGptPrompt] = useState('');
-  const [topK, setTopK] = useState(3);
+  const [topK] = useState(3);
   const [loading, setLoading] = useState({ ingest: false, query: false, gpt: false });
   const [results, setResults] = useState({ ingest: null, query: null, gpt: null });
+  const [activeConv, setActiveConv] = useState(null);
 
   const isValidUrl = useMemo(() => {
     try { return !!new URL(repoUrl.trim()); }
@@ -244,7 +329,11 @@ function App() {
     if (!repoUrl.trim()) return;
     setLoading(s => ({ ...s, ingest: true }));
     try {
-      const data = await requestJson(apiUrl('ingest', { repo_url: repoUrl.trim(), max_files: Number(maxFiles) }));
+      const data = await requestJson(`${API_BASE}/github/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: repoUrl.trim(), max_files: Number(maxFiles) }),
+      });
       setResults(s => ({ ...s, ingest: data }));
     } catch (err) {
       setResults(s => ({ ...s, ingest: { error: `Ingest failed: ${err.message}` } }));
@@ -257,7 +346,11 @@ function App() {
     if (!query.trim()) return;
     setLoading(s => ({ ...s, query: true }));
     try {
-      const data = await requestJson(apiUrl('search', { query: query.trim(), top_k: Number(topK) }));
+      const data = await requestJson(`${API_BASE}/query/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim(), top_k: Number(topK) }),
+      });
       setResults(s => ({ ...s, query: data }));
     } catch (err) {
       setResults(s => ({ ...s, query: { error: `Search failed: ${err.message}` } }));
@@ -270,7 +363,14 @@ function App() {
     if (!gptPrompt.trim()) return;
     setLoading(s => ({ ...s, gpt: true }));
     try {
-      const data = await requestJson(apiUrl('query', { prompt: gptPrompt.trim(), top_k: Number(topK), include_context: 'true' }));
+      const params = new URLSearchParams({
+        prompt: gptPrompt.trim(),
+        top_k: String(Number(topK)),
+        include_context: 'true',
+      });
+      if (activeConv) params.set('conversation_id', String(activeConv));
+      const opts = { method: 'POST', headers: { ...authHeaders(token) } };
+      const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, opts);
       setResults(s => ({ ...s, gpt: data }));
     } catch (err) {
       setResults(s => ({ ...s, gpt: { error: `GPT query failed: ${err.message}` } }));
@@ -291,13 +391,16 @@ function App() {
                 <circle cx="12" cy="12" r="2"/>
               </svg>
             </span>CodeSense</span>
-            <button className="ghost-btn" onClick={() => setPage('app')}>Launch</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <AuthButton />
+              <button className="ghost-btn" onClick={() => setPage('app')}>Launch</button>
+            </div>
           </nav>
           <section className="hero">
             <div className="hero-text">
-              <span className="pill">RAG-powered Code Analysis</span>
-              <h1>Understand any codebase<br/>through retrieval.</h1>
-              <p>Ingest, search, and query GitHub repositories with retrieval-augmented generation grounded in your actual code.</p>
+              <span className="pill">AI-Powered Intelligence</span>
+              <h1>Master your codebase<br/>with superhuman speed.</h1>
+              <p>Connect any repository to unlock deep semantic search, architectural mapping, and AI-driven Q&A grounded directly in your code.</p>
               <button className="primary-btn" onClick={() => setPage('app')}>
                 Get Started
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -314,9 +417,9 @@ function App() {
           </section>
           <section className="steps">
             {[
-              { t: 'Ingest', d: 'Pull code from any GitHub repository and chunk it intelligently for search.' },
-              { t: 'Search', d: 'Find relevant code by semantic meaning, not just keyword matching.' },
-              { t: 'Query', d: 'Ask grounded questions answered directly from your codebase via LLM.' },
+              { t: 'Connect', d: 'Securely sync your repository and let our AI build an intelligent neural index.' },
+              { t: 'Deep Search', d: 'Discover code through semantic meaning and intent, instantly finding what matters.' },
+              { t: 'Ask Codebase', d: 'Have conversational interactions with your codebase to solve complex architectural questions.' },
             ].map((s, i) => (
               <div className="step-card" key={s.t}>
                 <span className="step-num">0{i + 1}</span>
@@ -343,10 +446,10 @@ function App() {
             </span>CodeSense</span>
           <nav className="side-nav">
             {[
-              { k: 'ingest', l: 'Ingest' },
-              { k: 'tree', l: 'Modules' },
-              { k: 'search', l: 'Search' },
-              { k: 'qa', l: 'Q&A' },
+              { k: 'ingest', l: 'Connect Repo' },
+              { k: 'tree', l: 'Architecture' },
+              { k: 'search', l: 'Deep Search' },
+              { k: 'qa', l: 'Ask Codebase' },
             ].map(t => (
               <button
                 key={t.k}
@@ -358,11 +461,13 @@ function App() {
               </button>
             ))}
           </nav>
+          <ConversationsPanel activeConv={activeConv} onSelect={setActiveConv} onNew={(id) => setActiveConv(id)} repoUrl={repoUrl} />
           <div className="sidebar-bottom">
             <div className="repo-info">
               <span className="repo-label">Repository</span>
               <span className="repo-val">{repoUrl ? repoUrl.replace('https://github.com/', '') : 'Not set'}</span>
             </div>
+            <AuthButton />
             <button className="ghost-btn small" onClick={() => setPage('home')}>Home</button>
           </div>
         </aside>
@@ -371,8 +476,8 @@ function App() {
           {tab === 'ingest' && (
             <section className="feature-page fade-in">
               <div className="feature-header">
-                <h2>Ingest Repository</h2>
-                <p>Fetch repository files and build searchable vector chunks.</p>
+                <h2>Connect Repository</h2>
+                <p>Sync your codebase to build a powerful neural vector index.</p>
               </div>
               <div className="feature-body">
                 <div className="field">
@@ -385,20 +490,20 @@ function App() {
                     <input className="input" type="number" value={maxFiles} min="1" onChange={e => setMaxFiles(e.target.value)} />
                   </div>
                   <button className="primary-btn" onClick={handleIngest} disabled={loading.ingest || !isValidUrl}>
-                    {loading.ingest ? 'Ingesting...' : 'Ingest'}
+                    {loading.ingest ? 'Connecting...' : 'Connect'}
                   </button>
                 </div>
                 <IngestResult data={results.ingest} />
                 {results.ingest && !results.ingest.error && (
                   <button className="ghost-btn small" onClick={async () => {
                     try {
-                      await requestJson(apiUrl('clear'));
+                      await requestJson(`${API_BASE}/architecture/clear`, { method: 'POST' });
                       setResults(s => ({ ...s, ingest: null }));
                     } catch (e) {
                       setResults(s => ({ ...s, ingest: { error: e.message } }));
                     }
                   }} style={{ marginTop: 8 }}>
-                    Reset vectorstore
+                    Reset neural index
                   </button>
                 )}
               </div>
@@ -408,8 +513,8 @@ function App() {
           {tab === 'tree' && (
             <section className="feature-page fade-in">
               <div className="feature-header">
-                <h2>Module Graph</h2>
-                <p>Visualize codebase modules, layers, and dependencies.</p>
+                <h2>Codebase Architecture</h2>
+                <p>Interactive visualization of modules, layers, and dependencies.</p>
               </div>
               <ArchitecturePanel />
             </section>
@@ -418,8 +523,8 @@ function App() {
           {tab === 'search' && (
             <section className="feature-page fade-in">
               <div className="feature-header">
-                <h2>Semantic Search</h2>
-                <p>Find code by meaning, not just keywords.</p>
+                <h2>Deep Semantic Search</h2>
+                <p>Locate code snippets instantly using AI-driven meaning.</p>
               </div>
               <div className="feature-body">
                 <div className="field-row">
@@ -428,7 +533,7 @@ function App() {
                     <input className="input" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by meaning..." />
                   </div>
                   <button className="primary-btn" onClick={handleSearch} disabled={loading.query}>
-                    {loading.query ? 'Searching...' : 'Search'}
+                    {loading.query ? 'Searching...' : 'Deep Search'}
                   </button>
                 </div>
                 <SearchResult data={results.query} />
@@ -439,10 +544,22 @@ function App() {
           {tab === 'qa' && (
             <section className="feature-page fade-in">
               <div className="feature-header">
-                <h2>Grounded Q&A</h2>
-                <p>Ask questions answered from your actual codebase.</p>
+                <h2>Ask the Codebase</h2>
+                <p>Get instant, grounded answers directly from your repository's code.</p>
               </div>
               <div className="feature-body">
+                {!repoUrl && <div className="status-badge error" style={{ marginBottom: 8 }}>No repository connected. Go to Connect Repo tab first.</div>}
+                {user && repoUrl && (
+                  <div className="conv-status">
+                    {activeConv ? (
+                      <span className="flow-step" style={{ cursor: 'pointer' }} onClick={() => setActiveConv(null)}>
+                        {repoUrl.replace('https://github.com/', '')} &middot; Conversation #{activeConv} &times;
+                      </span>
+                    ) : (
+                      <span className="conv-hint">Create a conversation in the sidebar to save Q&A history</span>
+                    )}
+                  </div>
+                )}
                 <div className="field">
                   <label>Question</label>
                   <input
@@ -452,8 +569,8 @@ function App() {
                     placeholder="What does this project do?"
                   />
                 </div>
-                <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt}>
-                  {loading.gpt ? 'Generating...' : 'Ask'}
+                <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt || !repoUrl}>
+                  {loading.gpt ? 'Generating...' : repoUrl ? 'Ask AI' : 'Connect a repo first'}
                 </button>
                 <GptResult data={results.gpt} />
               </div>
@@ -466,4 +583,7 @@ function App() {
   );
 }
 
+function App() {
+  return <AuthProvider><AppInner /></AuthProvider>;
+}
 export default App;

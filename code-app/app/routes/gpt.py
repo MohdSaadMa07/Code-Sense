@@ -1,9 +1,13 @@
 import re
 from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException, Body
+from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from app.services.gpt_rag import rag_query
+from app.database import get_db
+from app.deps import get_optional_user
+from app.models import User, Conversation, Message
 
 router = APIRouter(prefix="/gpt", tags=["GPT"])
 
@@ -13,6 +17,7 @@ class LlamaQueryRequest(BaseModel):
     top_k: Optional[int] = None
     include_context: Optional[bool] = None
     debug: Optional[bool] = None
+    conversation_id: Optional[int] = None
 
 
 # ---------------------------
@@ -57,11 +62,14 @@ def _compute_confidence(answer: str, chunks) -> tuple:
 # ---------------------------
 @router.post("/query")
 def query_gpt(
-    prompt: Optional[str] = Query(None, description="The question to ask"),
-    top_k: int = Query(3, description="Number of context chunks to retrieve"),
-    include_context: bool = Query(False, description="Include retrieved context in response"),
-    debug: bool = Query(False, description="Return debug info"),
+    prompt: Optional[str] = Query(None),
+    top_k: int = Query(3),
+    include_context: bool = Query(False),
+    debug: bool = Query(False),
+    conversation_id: Optional[int] = Query(None),
     payload: Optional[LlamaQueryRequest] = Body(None),
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
 ):
     try:
         if prompt is None and payload and payload.prompt:
@@ -72,6 +80,8 @@ def query_gpt(
             include_context = payload.include_context
         if payload and payload.debug is not None:
             debug = payload.debug
+        if payload and payload.conversation_id is not None:
+            conversation_id = payload.conversation_id
 
         if not prompt:
             raise ValueError("'prompt' is required in query params or JSON body")
@@ -104,6 +114,25 @@ def query_gpt(
                 "confidence": {"label": confidence_label, "score": confidence_score},
                 "num_chunks": len(chunks),
             }
+
+        if user and conversation_id:
+            conv = db.query(Conversation).filter(
+                Conversation.id == conversation_id, Conversation.user_id == user.id
+            ).first()
+            if conv:
+                q_msg = Message(conversation_id=conv.id, role="user", content=prompt)
+                ctx_snapshot = [{"source": c.get("source"), "score": c.get("score")} for c in chunks] if chunks else None
+                a_msg = Message(
+                    conversation_id=conv.id,
+                    role="assistant",
+                    content=rag_result.get("llm_answer", answer),
+                    metadata_={"context": ctx_snapshot} if ctx_snapshot else None,
+                )
+                db.add(q_msg)
+                db.add(a_msg)
+                if conv.title == "New conversation":
+                    conv.title = prompt[:60]
+                db.commit()
 
         return response
 

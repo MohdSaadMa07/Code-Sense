@@ -137,7 +137,6 @@ def _clean_markdown_for_ingestion(text: str) -> str:
             cleaned_lines.append("")
             continue
 
-        # Remove image-only lines and badge noise that often pollute top matches.
         if re.match(r"^!?\[[^\]]*\]\([^)]*\)$", line):
             continue
         if line.startswith("!"):
@@ -145,10 +144,8 @@ def _clean_markdown_for_ingestion(text: str) -> str:
         if line.startswith("---"):
             continue
 
-        # Keep markdown links but preserve only visible text for retrieval quality.
         line = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", line)
 
-        # Drop lines that are mostly punctuation after cleanup.
         alnum_count = sum(ch.isalnum() for ch in line)
         if alnum_count < 3:
             continue
@@ -156,6 +153,100 @@ def _clean_markdown_for_ingestion(text: str) -> str:
         cleaned_lines.append(line)
 
     return "\n".join(cleaned_lines).strip()
+
+
+def _extract_recursive_nodes(node, source_bytes, chunk_size, chunk_overlap, char_splitter, metadata, language):
+    chunk_docs = []
+    
+    node_text = source_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="ignore").strip()
+    if not node_text:
+        return []
+    
+    start_line = node.start_point[0] + 1
+    end_line = node.end_point[0] + 1
+    
+    if len(node_text) <= chunk_size:
+        chunk_docs.append(
+            _doc_with_quality(
+                node_text,
+                metadata,
+                "tree_sitter",
+                language=language,
+                node_type=node.type,
+                start_line=start_line,
+                end_line=end_line,
+            )
+        )
+        return chunk_docs
+
+    children = [c for c in node.named_children if c.end_byte > c.start_byte]
+    
+    if not children:
+        for part in char_splitter(node_text, chunk_size, chunk_overlap):
+            chunk_docs.append(
+                _doc_with_quality(
+                    part,
+                    metadata,
+                    "tree_sitter_fallback",
+                    language=language,
+                    node_type=node.type,
+                    start_line=start_line,
+                    end_line=end_line,
+                )
+            )
+        return chunk_docs
+
+    current_group_start_byte = None
+    current_group_end_byte = None
+    group_type = "mixed"
+    group_start_line = None
+    group_end_line = None
+
+    def emit_group():
+        nonlocal current_group_start_byte, current_group_end_byte
+        if current_group_start_byte is not None and current_group_end_byte is not None:
+            text = source_bytes[current_group_start_byte:current_group_end_byte].decode("utf-8", errors="ignore").strip()
+            if text:
+                chunk_docs.append(
+                    _doc_with_quality(
+                        text,
+                        metadata,
+                        "tree_sitter",
+                        language=language,
+                        node_type=group_type,
+                        start_line=group_start_line,
+                        end_line=group_end_line,
+                    )
+                )
+        current_group_start_byte = None
+        current_group_end_byte = None
+
+    for child in children:
+        child_len = child.end_byte - child.start_byte
+        if child_len > chunk_size:
+            emit_group()
+            chunk_docs.extend(_extract_recursive_nodes(child, source_bytes, chunk_size, chunk_overlap, char_splitter, metadata, language))
+        else:
+            if current_group_start_byte is None:
+                current_group_start_byte = child.start_byte
+                current_group_end_byte = child.end_byte
+                group_type = child.type
+                group_start_line = child.start_point[0] + 1
+                group_end_line = child.end_point[0] + 1
+            else:
+                if child.end_byte - current_group_start_byte > chunk_size:
+                    emit_group()
+                    current_group_start_byte = child.start_byte
+                    current_group_end_byte = child.end_byte
+                    group_type = child.type
+                    group_start_line = child.start_point[0] + 1
+                    group_end_line = child.end_point[0] + 1
+                else:
+                    current_group_end_byte = child.end_byte
+                    group_end_line = child.end_point[0] + 1
+
+    emit_group()
+    return chunk_docs
 
 
 def chunk_with_tree_sitter(
@@ -179,16 +270,9 @@ def chunk_with_tree_sitter(
     if ext in {".html", ".htm"}:
         html_header_docs = _extract_html_table_header_docs(working_text, metadata)
 
-    if language is None:
+    if language is None or not TREE_SITTER_AVAILABLE:
         fallback_docs = [
-            _doc_with_quality(chunk, metadata, "fallback", fallback_reason="unsupported_extension")
-            for chunk in char_splitter(working_text, chunk_size, chunk_overlap)
-        ]
-        return html_header_docs + fallback_docs
-
-    if not TREE_SITTER_AVAILABLE:
-        fallback_docs = [
-            _doc_with_quality(chunk, metadata, "fallback", fallback_reason="tree_sitter_not_installed")
+            _doc_with_quality(chunk, metadata, "fallback", fallback_reason="unsupported_or_not_installed")
             for chunk in char_splitter(working_text, chunk_size, chunk_overlap)
         ]
         return html_header_docs + fallback_docs
@@ -197,7 +281,10 @@ def chunk_with_tree_sitter(
         parser = tree_sitter_get_parser(language)
         source_bytes = working_text.encode("utf-8")
         tree = parser.parse(source_bytes)
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("DEBUG TREE SITTER EXCEPTION:", type(e), e)
         fallback_docs = [
             _doc_with_quality(chunk, metadata, "fallback", fallback_reason="tree_sitter_parse_error")
             for chunk in char_splitter(working_text, chunk_size, chunk_overlap)
@@ -205,50 +292,9 @@ def chunk_with_tree_sitter(
         return html_header_docs + fallback_docs
 
     root = tree.root_node
-    nodes = [node for node in root.named_children if node.end_byte > node.start_byte]
-
-    if not nodes:
-        fallback_docs = [
-            _doc_with_quality(chunk, metadata, "fallback", fallback_reason="tree_sitter_no_nodes")
-            for chunk in char_splitter(working_text, chunk_size, chunk_overlap)
-        ]
-        return html_header_docs + fallback_docs
-
-    chunk_docs: list[Document] = []
-    for node in nodes:
-        node_text = source_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="ignore").strip()
-        if not node_text:
-            continue
-
-        start_line = node.start_point[0] + 1
-        end_line = node.end_point[0] + 1
-
-        if len(node_text) <= chunk_size:
-            chunk_docs.append(
-                _doc_with_quality(
-                    node_text,
-                    metadata,
-                    "tree_sitter",
-                    language=language,
-                    node_type=node.type,
-                    start_line=start_line,
-                    end_line=end_line,
-                )
-            )
-            continue
-
-        for part in char_splitter(node_text, chunk_size, chunk_overlap):
-            chunk_docs.append(
-                _doc_with_quality(
-                    part,
-                    metadata,
-                    "tree_sitter",
-                    language=language,
-                    node_type=node.type,
-                    start_line=start_line,
-                    end_line=end_line,
-                )
-            )
+    chunk_docs = _extract_recursive_nodes(
+        root, source_bytes, chunk_size, chunk_overlap, char_splitter, metadata, language
+    )
 
     if not chunk_docs:
         fallback_docs = [
