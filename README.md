@@ -10,6 +10,28 @@ RAG-powered code analysis tool. Ingest any GitHub repository, search semanticall
 - **Architecture** — Auto-generated Mermaid module diagram with layers, route domains, and dependency edges
 - **Conversation History** — Optional Google OAuth sign-in to persist Q&A per repo
 
+## Screenshots
+
+### Connect Repo
+![Connect Repo](docs/screenshots/connect-repo.png)
+Paste a GitHub URL, set max files, and ingest. Stats show repo name, files fetched, chunks generated, and a sample file path.
+
+### Deep Search
+![Deep Search](docs/screenshots/deep-search.png)
+Enter a semantic query. Results display ranked chunks with similarity score, file path, and highlighted code content.
+
+### Ask Codebase
+![Ask Codebase](docs/screenshots/ask-codebase.png)
+Type a question against the ingested code. The answer box shows LLM response with confidence badge (high/medium/low) and expandable context sources.
+
+### Architecture
+![Architecture](docs/screenshots/architecture.png)
+Mermaid flow diagram grouped by Frontend/Backend/External layers. Module cards show route summaries. Entry points and tech stack breakdown listed below the diagram.
+
+### Sign In
+![Sign In](docs/screenshots/sign-in.png)
+Google one-tap auth in the sidebar. Signed-in users see their avatar, name, and conversation list scoped to the current repository.
+
 ## Tech Stack
 
 | Layer | Technology |
