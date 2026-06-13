@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-langchain
 langchain-community
 langchain-huggingface
 langchain-core

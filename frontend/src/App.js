@@ -22,6 +22,54 @@ async function requestJson(url, options = {}) {
   return data;
 }
 
+/* ---- Toast System ---- */
+const ToastContext = React.createContext();
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type = 'info', duration = 4000) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, msg, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, removing: true } : t));
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 300);
+    }, duration);
+  }, []);
+  const remove = useCallback((id) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, removing: true } : t));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 300);
+  }, []);
+  return (
+    <ToastContext.Provider value={add}>
+      {children}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.type}${t.removing ? ' removing' : ''}`} onClick={() => remove(t.id)}>
+            <span className="toast-icon">
+              {t.type === 'success' ? '#' : t.type === 'error' ? '!' : 'i'}
+            </span>
+            <span className="toast-msg">{t.msg}</span>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+function useToast() { return React.useContext(ToastContext); }
+
+function EmptyState({ icon, title, desc }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          {icon || <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>}
+        </svg>
+      </div>
+      <span className="empty-state-title">{title || 'Nothing here'}</span>
+      {desc && <span className="empty-state-desc">{desc}</span>}
+    </div>
+  );
+}
+
 function AuthButton() {
   const { user, loading, signOut, promptGoogleSignIn } = useAuth();
 
@@ -40,6 +88,20 @@ function AuthButton() {
       <button className="ghost-btn" onClick={promptGoogleSignIn}>Sign in with Google</button>
     </div>
   );
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = Math.max(0, now - then);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
 function ConversationsPanel({ activeConv, onSelect, onNew, repoUrl }) {
@@ -90,6 +152,7 @@ function ConversationsPanel({ activeConv, onSelect, onNew, repoUrl }) {
         {filteredConvs.map((c) => (
           <div key={c.id} className={`conv-item ${activeConv === c.id ? 'active' : ''}`} onClick={() => onSelect(c.id)}>
             <span className="conv-title">{c.title}</span>
+            <span className="conv-time">{timeAgo(c.updated_at || c.created_at)}</span>
             <button className="conv-del" onClick={(e) => { e.stopPropagation(); delConv(c.id); }} title="Delete">&times;</button>
           </div>
         ))}
@@ -98,7 +161,17 @@ function ConversationsPanel({ activeConv, onSelect, onNew, repoUrl }) {
   );
 }
 
-function IngestResult({ data }) {
+function IngestResult({ data, loading }) {
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0' }}>
+        <div className="progress-wrap">
+          <div className="progress-bar indeterminate" />
+        </div>
+        <span className="progress-label">Fetching files via GitHub API... (may take a while on large repos)</span>
+      </div>
+    );
+  }
   if (!data) return null;
   if (data.error) return <div className="status-badge error">{data.error}</div>;
   return (
@@ -111,11 +184,24 @@ function IngestResult({ data }) {
   );
 }
 
-function SearchResult({ data }) {
-  if (!data) return <p className="hint">Run a search to see results</p>;
+function SearchResult({ data, loading }) {
+  if (loading) {
+    return (
+      <div className="result-list">
+        {[1,2,3].map(i => (
+          <div key={i} className="chunk-card" style={{ borderLeftColor: 'var(--border-subtle)' }}>
+            <div className="chunk-meta"><span className="skeleton text" style={{ width: 40 }} /><span className="skeleton text" style={{ width: 60 }} /></div>
+            <div className="skeleton text" style={{ width: '70%' }} />
+            <div className="skeleton card" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!data) return <EmptyState icon={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} title="Search your codebase" desc="Enter a query above to find semantically relevant code." />;
   if (data.error) return <div className="status-badge error">{data.error}</div>;
   if (!Array.isArray(data.results) || data.results.length === 0)
-    return <p className="hint">No similar chunks found</p>;
+    return <EmptyState icon={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} title="No results found" desc="Try rephrasing your query or ingesting more files." />;
   return (
     <div className="result-list">
       {data.results.map((item) => {
@@ -141,8 +227,20 @@ function SearchResult({ data }) {
   );
 }
 
-function GptResult({ data }) {
-  if (!data) return <p className="hint">Ask a question to get an answer</p>;
+function GptResult({ data, loading }) {
+  if (loading) {
+    return (
+      <div className="qa-result">
+        <div className="answer-box" style={{ borderTopColor: 'var(--border-subtle)' }}>
+          <div className="answer-top"><span className="skeleton text" style={{ width: 80 }} /><span className="skeleton text" style={{ width: 100 }} /></div>
+          <div className="skeleton title" style={{ width: '90%' }} />
+          <div className="skeleton text" style={{ width: '70%' }} />
+          <div className="skeleton text" style={{ width: '50%' }} />
+        </div>
+      </div>
+    );
+  }
+  if (!data) return <EmptyState icon={<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>} title="Ask a question" desc="Type a question above and get a grounded answer from your codebase." />;
   if (data.error) return <div className="status-badge error">{data.error}</div>;
   const isLow = data.confidence === 'low';
   return (
@@ -176,6 +274,7 @@ function GptResult({ data }) {
 }
 
 function ArchitecturePanel() {
+  const toast = useToast();
   const [diagram, setDiagram] = useState(null);
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -226,8 +325,10 @@ function ArchitecturePanel() {
       const res = await requestJson(`${API_BASE}/architecture/generate`, { method: 'POST' });
       setDiagram(res.mermaid);
       setInfo(res);
+      toast(`Architecture generated (${res.modules_found ?? 0} modules)`, 'success');
     } catch (err) {
       setError(err.message);
+      toast(`Architecture generation failed: ${err.message}`, 'error', 6000);
     } finally {
       setLoading(false);
     }
@@ -309,6 +410,7 @@ const NavIcon = ({ name }) => {
 
 function AppInner() {
   const { user, token } = useAuth();
+  const toast = useToast();
   const [page, setPage] = useState('home');
   const [tab, setTab] = useState('ingest');
   const [repoUrl, setRepoUrl] = useState('');
@@ -335,8 +437,10 @@ function AppInner() {
         body: JSON.stringify({ repo_url: repoUrl.trim(), max_files: Number(maxFiles) }),
       });
       setResults(s => ({ ...s, ingest: data }));
+      toast(`Ingested ${data.files_ingested ?? 0} files from ${data.repo || 'repo'}`, 'success');
     } catch (err) {
       setResults(s => ({ ...s, ingest: { error: `Ingest failed: ${err.message}` } }));
+      toast(`Ingest failed: ${err.message}`, 'error');
     } finally {
       setLoading(s => ({ ...s, ingest: false }));
     }
@@ -352,8 +456,11 @@ function AppInner() {
         body: JSON.stringify({ query: query.trim(), top_k: Number(topK) }),
       });
       setResults(s => ({ ...s, query: data }));
+      if (data.results?.length) toast(`Found ${data.results.length} results`, 'success');
+      else toast('No results found', 'info');
     } catch (err) {
       setResults(s => ({ ...s, query: { error: `Search failed: ${err.message}` } }));
+      toast(`Search failed: ${err.message}`, 'error', 6000);
     } finally {
       setLoading(s => ({ ...s, query: false }));
     }
@@ -372,8 +479,11 @@ function AppInner() {
       const opts = { method: 'POST', headers: { ...authHeaders(token) } };
       const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, opts);
       setResults(s => ({ ...s, gpt: data }));
+      if (data.confidence === 'high') toast('Answer ready (high confidence)', 'success');
+      else if (data.confidence === 'medium') toast('Answer ready (medium confidence)', 'info');
     } catch (err) {
       setResults(s => ({ ...s, gpt: { error: `GPT query failed: ${err.message}` } }));
+      toast(`Query failed: ${err.message}`, 'error', 6000);
     } finally {
       setLoading(s => ({ ...s, gpt: false }));
     }
@@ -493,7 +603,7 @@ function AppInner() {
                     {loading.ingest ? 'Connecting...' : 'Connect'}
                   </button>
                 </div>
-                <IngestResult data={results.ingest} />
+                <IngestResult data={results.ingest} loading={loading.ingest} />
                 {results.ingest && !results.ingest.error && (
                   <button className="ghost-btn small" onClick={async () => {
                     try {
@@ -536,7 +646,7 @@ function AppInner() {
                     {loading.query ? 'Searching...' : 'Deep Search'}
                   </button>
                 </div>
-                <SearchResult data={results.query} />
+                <SearchResult data={results.query} loading={loading.query} />
               </div>
             </section>
           )}
@@ -572,7 +682,7 @@ function AppInner() {
                 <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt || !repoUrl}>
                   {loading.gpt ? 'Generating...' : repoUrl ? 'Ask AI' : 'Connect a repo first'}
                 </button>
-                <GptResult data={results.gpt} />
+                <GptResult data={results.gpt} loading={loading.gpt} />
               </div>
             </section>
           )}
@@ -584,6 +694,6 @@ function AppInner() {
 }
 
 function App() {
-  return <AuthProvider><AppInner /></AuthProvider>;
+  return <AuthProvider><ToastProvider><AppInner /></ToastProvider></AuthProvider>;
 }
 export default App;

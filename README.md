@@ -1,11 +1,139 @@
 # CodeSense
 
-RAG-powered code analysis tool. Ingest any GitHub repo, ask questions in natural language, get answers grounded in your actual codebase.
+RAG-powered code analysis tool. Ingest any GitHub repository, search semantically, generate architecture diagrams, and ask questions grounded in your actual codebase.
 
-## Usage
+## Features
 
-1. Enter a GitHub repo URL (e.g. `nz-m/SocialEcho`)
-2. Click **Ingest** to download and index the code
-3. Ask questions in the **Q&A** tab
-4. View the **Architecture** diagram
-5. Search symbols via **Modules**
+- **Connect Repo** — Fetches files from any public GitHub repo via API
+- **Deep Search** — Semantic vector search using all-MiniLM-L6-v2 embeddings via FAISS
+- **Ask Codebase** — LLM-powered Q&A (Groq, `gpt-oss-120b`) grounded in retrieved code context
+- **Architecture** — Auto-generated Mermaid module diagram with layers, route domains, and dependency edges
+- **Conversation History** — Optional Google OAuth sign-in to persist Q&A per repo
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + react-markdown |
+| Backend | FastAPI (Python 3.10) |
+| Vector Store | FAISS (local, via `sentence-transformers/all-MiniLM-L6-v2`) |
+| LLM | Groq API (`openai/gpt-oss-120b`) |
+| Auth | Google OAuth (Google Identity Services) |
+| Database | SQLite (via SQLAlchemy) |
+| Chunking | Python AST + tree-sitter (graceful fallback to character split) |
+
+## Environment Variables
+
+Create two `.env` files:
+
+**Root `.env`** (backend — loaded by `load_dotenv`):
+```
+GROQ_API_KEY=gsk_your_groq_key
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+JWT_SECRET=a_random_secret_string
+GITHUB_TOKEN=github_pat_your_token   # Optional: Contents:Read scope for higher API rate limit
+```
+
+**`frontend/.env`** (React — must be prefixed `REACT_APP_`):
+```
+REACT_APP_GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
+
+> If `GITHUB_TOKEN` is not set, the GitHub API falls back to anonymous (60 req/hr limit).
+
+## Local Development
+
+### Backend
+
+```bash
+cd code-app
+python -m venv .venv
+.venv\Scripts\activate     # Windows
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+The frontend dev server proxies API calls to `http://127.0.0.1:8000` automatically (checked via `window.location.hostname === 'localhost'`).
+
+## Build & Production
+
+```bash
+# Frontend build (static files served by FastAPI)
+cd frontend && npm run build
+
+# Run backend (serves the built frontend)
+cd code-app && uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Docker
+
+```bash
+docker build -t codesense .
+docker run -p 8000:8000 --env-file .env codesense
+```
+
+The multi-stage `Dockerfile` builds the frontend, then copies the result into a Python runtime image.
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/github/ingest` | Ingest a GitHub repo (`repo_url`, `max_files`) |
+| POST | `/query/` | Semantic search (`query`, `top_k`) |
+| POST | `/gpt/query` | LLM Q&A (`prompt`, `top_k`, `include_context`, `conversation_id`) |
+| POST | `/architecture/generate` | Generate module architecture diagram + metadata |
+| POST | `/architecture/clear` | Clear the FAISS vectorstore |
+| POST | `/auth/google` | Sign in with Google credential |
+| GET | `/auth/me` | Get current user profile (requires auth) |
+| GET | `/conversations/` | List conversations (requires auth) |
+| POST | `/conversations/` | Create conversation (requires auth) |
+| DELETE | `/conversations/{id}` | Delete conversation (requires auth) |
+
+## Project Structure
+
+```
+code-app/
+├── app/
+│   ├── main.py                    # FastAPI entry point
+│   ├── database.py                # SQLAlchemy engine + migrations
+│   ├── models.py                  # User, Conversation, Message tables
+│   ├── deps.py                    # JWT helpers, auth dependencies
+│   ├── routes/
+│   │   ├── ingest.py              # File upload ingest (legacy)
+│   │   ├── github.py              # GitHub repo ingest
+│   │   ├── query.py               # Semantic search
+│   │   ├── gpt.py                 # LLM Q&A
+│   │   ├── architecture.py        # Architecture diagram generation
+│   │   ├── auth.py                # Google OAuth
+│   │   ├── conversations.py       # Conversation CRUD
+│   │   └── tree.py                # Symbol/module listing
+│   └── services/
+│       ├── storage.py             # FAISS vectorstore (load/save/embed)
+│       ├── github_loader.py       # GitHub API file fetcher
+│       ├── gpt_rag.py             # Groq / OpenAI client + RAG prompt
+│       ├── ast_chunker.py         # Python AST chunking
+│       └── tree_sitter_chunker.py # tree-sitter chunking for JS/TS/etc.
+├── requirements.txt
+└── vectorstore/                   # FAISS index (gitignored, created at runtime)
+
+frontend/
+├── public/
+├── src/
+│   ├── App.js                     # Main app component
+│   ├── App.css                    # Styles (dark cyber theme)
+│   ├── AuthContext.js             # Google OAuth integration
+│   └── index.js                   # React entry point
+├── package.json
+└── .env
+
+Dockerfile                          # Multi-stage production build
+render.yaml                         # Render.com deployment config
+```

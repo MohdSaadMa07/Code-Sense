@@ -1,4 +1,4 @@
-# Byte-compiled / optimized / DLL files
+# Byte-compiled
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,20 +10,15 @@ env/
 venv/
 ENV/
 
-# PyCharm / IntelliJ
+# IDE
 .idea/
-
-# VS Code
 .vscode/
-
-### Project Specific ###
 
 # Large Models
 *.gguf
 *.bin
 *.onnx
 *.safetensors
-code-app/app/models/*.gguf
 code-app/all-MiniLM-L6-v2/
 
 # Vector Store
@@ -34,3 +29,10 @@ vectorstore/
 
 # Logs
 *.log
+
+# Local Database
+*.db
+
+# Frontend build
+frontend/build/
+frontend/node_modules/

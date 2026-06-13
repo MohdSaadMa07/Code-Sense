@@ -52,19 +52,14 @@ def fetch_repo_contents(owner, repo, path=""):
     url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/contents/{path}"
     try:
         response = requests.get(url, headers=get_headers(), timeout=10)
-        print(f"STATUS: {response.status_code} | PATH: {path}")
         if response.status_code == 403:
-            print(f"⚠️ Skipping path (403): {path}")
             return []
         if response.status_code == 404:
-            print(f"⚠️ Skipping path (404): {path}")
             return []
         if response.status_code != 200:
-            print(f"⚠️ Skipping path: {path} | Status: {response.status_code}")
             return []
         return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Network error: {e}")
+    except requests.exceptions.RequestException:
         return []
 
 
@@ -72,7 +67,6 @@ def _download_file(item: dict) -> dict | None:
     try:
         resp = requests.get(item["download_url"], headers=get_headers(), timeout=15)
         if resp.status_code != 200:
-            print(f"  Failed: {item['path']} ({resp.status_code})")
             return None
         raw = resp.content
         try:
@@ -80,17 +74,14 @@ def _download_file(item: dict) -> dict | None:
         except UnicodeDecodeError:
             text = raw.decode("utf-8", errors="replace")
         return {"path": item["path"], "content": text}
-    except requests.exceptions.RequestException as e:
-        print(f"  Error: {item['path']} — {e}")
+    except requests.exceptions.RequestException:
         return None
 
 
 def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 500) -> list[dict]:
-    # Collect all file items recursively first (fast)
     file_items = []
     _gather_file_items(owner, repo, path, max_files, file_items)
 
-    # Download all files in parallel
     collected = []
     with ThreadPoolExecutor(max_workers=10) as pool:
         futs = {pool.submit(_download_file, item): item for item in file_items}
@@ -112,9 +103,6 @@ def _gather_file_items(owner: str, repo: str, path: str, max_files: int, out: li
             out.append(item)
 
 
-# ✅ FIX: Deduplicate by (path, content) before storing.
-#         Without this, every re-ingest multiplies chunks in FAISS —
-#         causing all top_k slots to return identical results.
 def deduplicate_documents(documents: list[Document]) -> list[Document]:
     seen = set()
     unique = []
@@ -123,16 +111,12 @@ def deduplicate_documents(documents: list[Document]) -> list[Document]:
         if key not in seen:
             seen.add(key)
             unique.append(doc)
-    removed = len(documents) - len(unique)
-    if removed:
-        print(f"🧹 Removed {removed} duplicate document(s) before ingestion")
     return unique
 
 
 def ingest_github_repo(repo_url: str) -> dict:
     try:
         owner, repo = parse_github_repo(repo_url)
-        print(f"🚀 Ingesting repo: {owner}/{repo}")
 
         files = collect_repo_files(owner, repo)
 
@@ -147,7 +131,6 @@ def ingest_github_repo(repo_url: str) -> dict:
             for f in files
         ]
 
-        # ✅ FIX: Deduplicate before chunking + storing
         documents = deduplicate_documents(documents)
 
         chunks_ingested = store_documents(documents)

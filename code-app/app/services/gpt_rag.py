@@ -11,7 +11,7 @@ def get_client():
     if _client is None:
         key = os.getenv("GROQ_API_KEY")
         if not key:
-            raise RuntimeError("GROQ_API_KEY not set — add it to your HF Space secrets")
+            raise RuntimeError("GROQ_API_KEY not set")
         try:
             _client = OpenAI(
                 base_url="https://api.groq.com/openai/v1",
@@ -107,7 +107,7 @@ RULES:
 - Answer using the given context only
 - If code exists, explain what it does
 - Mention function names clearly
-- If the context has nothing related to the question, say "No relevant information found in the codebase" — do not make up answers
+- If the context has nothing related to the question, say "No relevant information found in the codebase" - do not make up answers
 
 CONTEXT:
 {context}

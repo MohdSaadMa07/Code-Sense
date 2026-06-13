@@ -162,7 +162,7 @@ def _python_ast_chunks(text: str, metadata: dict, chunk_size: int, chunk_overlap
         return [
             _doc_with_quality(chunk, metadata, "fallback")
             for chunk in _chunk_text_by_chars(text, chunk_size, chunk_overlap)
-            if len(chunk.strip()) >= MIN_CHUNK_LENGTH  # ✅ skip short chunks
+            if len(chunk.strip()) >= MIN_CHUNK_LENGTH
         ]
 
     lines = text.splitlines(keepends=True)
