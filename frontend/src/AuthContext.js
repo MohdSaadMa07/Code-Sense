@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '8000' ? 'http://127.0.0.1:8000' : '';
+const API_BASE = process.env.REACT_APP_API_URL || (
+  window.location.hostname === 'localhost' && window.location.port !== '8000'
+    ? 'http://127.0.0.1:8000'
+    : ''
+);
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 
 const AuthContext = createContext(null);

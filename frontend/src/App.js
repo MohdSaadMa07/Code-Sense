@@ -4,7 +4,11 @@ import remarkGfm from 'remark-gfm';
 import './App.css';
 import { AuthProvider, useAuth, authHeaders } from './AuthContext';
 
-const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '8000' ? 'http://127.0.0.1:8000' : '';
+const API_BASE = process.env.REACT_APP_API_URL || (
+  window.location.hostname === 'localhost' && window.location.port !== '8000'
+    ? 'http://127.0.0.1:8000'
+    : ''
+);
 
 async function requestJson(url, options = {}) {
   const res = await fetch(url, options);

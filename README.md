@@ -85,24 +85,41 @@ npm start
 
 The frontend dev server proxies API calls to `http://127.0.0.1:8000` automatically (checked via `window.location.hostname === 'localhost'`).
 
-## Build & Production
+## Deployment (Split Architecture)
 
-```bash
-# Frontend build (static files served by FastAPI)
-cd frontend && npm run build
+Frontend and backend are deployed separately for zero cold-start on the UI.
 
-# Run backend (serves the built frontend)
-cd code-app && uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
+### Backend — Render
 
-### Docker
+1. Push your repo to GitHub
+2. Create a new **Web Service** on Render (or use `render.yaml`)
+3. Set:
+   - **Runtime:** `Python 3`
+   - **Build Command:** `pip install -r code-app/requirements.txt`
+   - **Start Command:** `cd code-app && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variables from `.env`
+5. Deploy — your API will be at `https://codesense-api.onrender.com`
+
+### Frontend — Cloudflare Pages (free)
+
+1. Go to **Cloudflare Dashboard > Workers & Pages > Create > Pages > Connect to Git**
+2. Select your repo
+3. Set:
+   - **Build command:** `cd frontend && npm ci && npm run build`
+   - **Build output directory:** `frontend/build`
+   - **Environment variable:** `REACT_APP_API_URL = https://codesense-api.onrender.com`
+4. Deploy — your frontend will be at `https://codesense.pages.dev`
+
+The frontend is globally distributed via Cloudflare's CDN with no spin-down or cold start.
+
+### Docker (single-service deploy)
+
+For a single-service deploy (Render or Railway):
 
 ```bash
 docker build -t codesense .
 docker run -p 8000:8000 --env-file .env codesense
 ```
-
-The multi-stage `Dockerfile` builds the frontend, then copies the result into a Python runtime image.
 
 ## API Endpoints
 
