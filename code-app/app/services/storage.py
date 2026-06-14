@@ -11,34 +11,21 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
-class _HFAPIEmbeddings:
+class _FastEmbeddings:
     def __init__(self):
-        import requests
-        self._api_key = os.getenv("HUGGINGFACE_API_KEY", "")
-        self._api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
-        self._session = requests.Session()
-        self._session.headers.update({"Authorization": f"Bearer {self._api_key}"})
-
-    def _call(self, texts):
-        if not self._api_key:
-            raise RuntimeError("HUGGINGFACE_API_KEY not set — get a free token at https://huggingface.co/settings/tokens")
-        resp = self._session.post(self._api_url, json={"inputs": texts, "options": {"wait_for_model": True}}, timeout=60)
-        if resp.status_code == 503:
-            resp = self._session.post(self._api_url, json={"inputs": texts, "options": {"wait_for_model": True}}, timeout=120)
-        resp.raise_for_status()
-        return resp.json()
+        from fastembed import TextEmbedding
+        self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
     def embed_query(self, text: str):
-        result = self._call(text)
-        return result if isinstance(result[0], (int, float)) else result[0]
+        return list(self._model.embed(text))[0].tolist()
 
     def embed_documents(self, texts: list[str]):
-        return self._call(texts)
+        return [e.tolist() for e in self._model.embed(texts)]
 
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _HFAPIEmbeddings()
+        _embeddings = _FastEmbeddings()
     return _embeddings
 
 def clear_vectorstore():
