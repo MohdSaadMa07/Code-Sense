@@ -12,21 +12,45 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
-class _FastEmbeddings(Embeddings):
+class _HFEmbeddings(Embeddings):
     def __init__(self):
-        from fastembed import TextEmbedding
-        self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        import requests as _req
+        self._api_key = os.getenv("HUGGINGFACE_API_KEY", "")
+        self._api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+        self._session = _req.Session()
+        self._session.headers.update({"Authorization": f"Bearer {self._api_key}"})
+
+    def _call(self, texts, retries=3):
+        import time
+        texts_list = texts if isinstance(texts, list) else [texts]
+        for attempt in range(retries):
+            try:
+                resp = self._session.post(self._api_url, json={
+                    "inputs": texts_list,
+                    "options": {"wait_for_model": True}
+                }, timeout=120)
+                if resp.status_code == 503 and attempt < retries - 1:
+                    time.sleep(5 * (attempt + 1))
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                return data if isinstance(texts, list) else data[0]
+            except Exception as e:
+                if attempt < retries - 1:
+                    time.sleep(5 * (attempt + 1))
+                else:
+                    raise RuntimeError(f"Embedding API call failed after {retries} retries: {e}")
 
     def embed_query(self, text: str):
-        return list(self._model.embed(text))[0].tolist()
+        return self._call(text)
 
     def embed_documents(self, texts: list[str]):
-        return [e.tolist() for e in self._model.embed(texts)]
+        return self._call(texts)
 
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _FastEmbeddings()
+        _embeddings = _HFEmbeddings()
     return _embeddings
 
 def clear_vectorstore():

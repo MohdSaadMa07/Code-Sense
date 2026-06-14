@@ -12,4 +12,4 @@ openai
 sqlalchemy
 python-jose[cryptography]
 httpx
-fastembed
+huggingface-hub
