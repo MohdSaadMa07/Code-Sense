@@ -15,6 +15,7 @@ VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorst
 class _JinaEmbeddings(Embeddings):
     def __init__(self):
         import requests as _req
+        import time as _time
         self._api_key = os.getenv("JINA_API_KEY", "")
         self._api_url = "https://api.jina.ai/v1/embeddings"
         self._session = _req.Session()
@@ -22,21 +23,39 @@ class _JinaEmbeddings(Embeddings):
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json"
         })
+        self._last_call = 0.0
 
-    def _call(self, texts):
+    def _call(self, texts, retries=3):
         if not self._api_key:
             raise RuntimeError("JINA_API_KEY not set — get a free key at https://jina.ai/embeddings/")
+        import time
         single = isinstance(texts, str)
         texts_list = [texts] if single else texts
-        resp = self._session.post(self._api_url, json={
-            "model": "jina-embeddings-v3",
-            "input": texts_list,
-            "normalized": True
-        }, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        embeddings = [item["embedding"] for item in data["data"]]
-        return embeddings[0] if single else embeddings
+        for attempt in range(retries):
+            now = time.time()
+            since_last = now - self._last_call
+            if since_last < 0.6:
+                time.sleep(0.6 - since_last)
+            self._last_call = time.time()
+            try:
+                resp = self._session.post(self._api_url, json={
+                    "model": "jina-embeddings-v3",
+                    "input": texts_list,
+                    "normalized": True
+                }, timeout=60)
+                if resp.status_code == 429:
+                    if attempt < retries - 1:
+                        time.sleep(2 * (attempt + 1))
+                        continue
+                resp.raise_for_status()
+                data = resp.json()
+                embeddings = [item["embedding"] for item in data["data"]]
+                return embeddings[0] if single else embeddings
+            except Exception as e:
+                if attempt < retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                else:
+                    raise RuntimeError(f"Embedding call failed after {retries} retries: {e}")
 
     def embed_query(self, text: str):
         return self._call(text)
