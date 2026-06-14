@@ -41,7 +41,7 @@ Mermaid flow diagram grouped by Frontend/Backend/External layers. Module cards s
 |-------|-----------|
 | Frontend | React 19 + react-markdown |
 | Backend | FastAPI (Python 3.10) |
-| Vector Store | FAISS (local, via `sentence-transformers/all-MiniLM-L6-v2`) |
+| Vector Store | FAISS (embeddings via HuggingFace Inference API, `all-MiniLM-L6-v2`) |
 | LLM | Groq API (`openai/gpt-oss-120b`) |
 | Auth | Google OAuth (Google Identity Services) |
 | Database | SQLite (via SQLAlchemy) |
@@ -57,6 +57,7 @@ GROQ_API_KEY=gsk_your_groq_key
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 JWT_SECRET=a_random_secret_string
 GITHUB_TOKEN=github_pat_your_token   # Optional: Contents:Read scope for higher API rate limit
+HUGGINGFACE_API_KEY=hf_your_token    # Required: get a free token at https://huggingface.co/settings/tokens
 ```
 
 **`frontend/.env`** (React — must be prefixed `REACT_APP_`):
@@ -64,7 +65,8 @@ GITHUB_TOKEN=github_pat_your_token   # Optional: Contents:Read scope for higher 
 REACT_APP_GOOGLE_CLIENT_ID=your_google_oauth_client_id
 ```
 
-> If `GITHUB_TOKEN` is not set, the GitHub API falls back to anonymous (60 req/hr limit).
+> If `GITHUB_TOKEN` is not set, the GitHub API falls back to anonymous (60 req/hr limit).  
+> `HUGGINGFACE_API_KEY` is required — get one free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
 
 ## Local Development
 

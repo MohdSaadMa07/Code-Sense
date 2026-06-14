@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from app.services.ast_chunker import chunk_documents_with_ast
 
@@ -12,12 +11,34 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
+class _HFAPIEmbeddings:
+    def __init__(self):
+        import requests
+        self._api_key = os.getenv("HUGGINGFACE_API_KEY", "")
+        self._api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+        self._session = requests.Session()
+        self._session.headers.update({"Authorization": f"Bearer {self._api_key}"})
+
+    def _call(self, texts):
+        if not self._api_key:
+            raise RuntimeError("HUGGINGFACE_API_KEY not set — get a free token at https://huggingface.co/settings/tokens")
+        resp = self._session.post(self._api_url, json={"inputs": texts, "options": {"wait_for_model": True}}, timeout=60)
+        if resp.status_code == 503:
+            resp = self._session.post(self._api_url, json={"inputs": texts, "options": {"wait_for_model": True}}, timeout=120)
+        resp.raise_for_status()
+        return resp.json()
+
+    def embed_query(self, text: str):
+        result = self._call(text)
+        return result if isinstance(result[0], (int, float)) else result[0]
+
+    def embed_documents(self, texts: list[str]):
+        return self._call(texts)
+
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"  # Downloads if not local
-        )
+        _embeddings = _HFAPIEmbeddings()
     return _embeddings
 
 def clear_vectorstore():
