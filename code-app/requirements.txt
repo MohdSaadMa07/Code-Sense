@@ -14,5 +14,3 @@ openai
 sqlalchemy
 python-jose[cryptography]
 httpx
-tree-sitter==0.21.3
-tree-sitter-languages
