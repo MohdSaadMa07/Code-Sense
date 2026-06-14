@@ -4,6 +4,7 @@ from pathlib import Path
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from app.services.ast_chunker import chunk_documents_with_ast
 
 _embeddings = None
@@ -11,7 +12,7 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
-class _FastEmbeddings:
+class _FastEmbeddings(Embeddings):
     def __init__(self):
         from fastembed import TextEmbedding
         self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
