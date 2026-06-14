@@ -12,34 +12,31 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
-class _HFEmbeddings(Embeddings):
+class _JinaEmbeddings(Embeddings):
     def __init__(self):
         import requests as _req
-        self._api_key = os.getenv("HUGGINGFACE_API_KEY", "")
-        self._api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+        self._api_key = os.getenv("JINA_API_KEY", "")
+        self._api_url = "https://api.jina.ai/v1/embeddings"
         self._session = _req.Session()
-        self._session.headers.update({"Authorization": f"Bearer {self._api_key}"})
+        self._session.headers.update({
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json"
+        })
 
-    def _call(self, texts, retries=3):
-        import time
-        texts_list = texts if isinstance(texts, list) else [texts]
-        for attempt in range(retries):
-            try:
-                resp = self._session.post(self._api_url, json={
-                    "inputs": texts_list,
-                    "options": {"wait_for_model": True}
-                }, timeout=120)
-                if resp.status_code == 503 and attempt < retries - 1:
-                    time.sleep(5 * (attempt + 1))
-                    continue
-                resp.raise_for_status()
-                data = resp.json()
-                return data if isinstance(texts, list) else data[0]
-            except Exception as e:
-                if attempt < retries - 1:
-                    time.sleep(5 * (attempt + 1))
-                else:
-                    raise RuntimeError(f"Embedding API call failed after {retries} retries: {e}")
+    def _call(self, texts):
+        if not self._api_key:
+            raise RuntimeError("JINA_API_KEY not set — get a free key at https://jina.ai/embeddings/")
+        single = isinstance(texts, str)
+        texts_list = [texts] if single else texts
+        resp = self._session.post(self._api_url, json={
+            "model": "jina-embeddings-v3",
+            "input": texts_list,
+            "normalized": True
+        }, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        embeddings = [item["embedding"] for item in data["data"]]
+        return embeddings[0] if single else embeddings
 
     def embed_query(self, text: str):
         return self._call(text)
@@ -50,7 +47,7 @@ class _HFEmbeddings(Embeddings):
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _HFEmbeddings()
+        _embeddings = _JinaEmbeddings()
     return _embeddings
 
 def clear_vectorstore():
