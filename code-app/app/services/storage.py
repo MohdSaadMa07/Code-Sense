@@ -15,7 +15,6 @@ VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorst
 class _JinaEmbeddings(Embeddings):
     def __init__(self):
         import requests as _req
-        import time as _time
         self._api_key = os.getenv("JINA_API_KEY", "")
         self._api_url = "https://api.jina.ai/v1/embeddings"
         self._session = _req.Session()
@@ -26,8 +25,6 @@ class _JinaEmbeddings(Embeddings):
         self._last_call = 0.0
 
     def _call(self, texts, retries=3):
-        if not self._api_key:
-            raise RuntimeError("JINA_API_KEY not set — get a free key at https://jina.ai/embeddings/")
         import time
         single = isinstance(texts, str)
         texts_list = [texts] if single else texts
@@ -63,10 +60,38 @@ class _JinaEmbeddings(Embeddings):
     def embed_documents(self, texts: list[str]):
         return self._call(texts)
 
+
+class _LocalEmbeddings(Embeddings):
+    def __init__(self):
+        from fastembed import TextEmbedding
+        self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    def embed_query(self, text: str):
+        return list(self._model.embed(text))[0].tolist()
+
+    def embed_documents(self, texts: list[str]):
+        return [e.tolist() for e in self._model.embed(texts)]
+
+
+def _has_real_jina_key():
+    key = os.getenv("JINA_API_KEY", "")
+    return bool(key) and "your_free_key" not in key
+
+
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _JinaEmbeddings()
+        if _has_real_jina_key():
+            _embeddings = _JinaEmbeddings()
+        else:
+            try:
+                _embeddings = _LocalEmbeddings()
+            except Exception as e:
+                raise RuntimeError(
+                    "No valid JINA_API_KEY found and local embeddings failed to load.\n"
+                    "Option A: pip install fastembed (for local embeddings, ~150MB RAM)\n"
+                    "Option B: set JINA_API_KEY (free at https://jina.ai/embeddings/)"
+                ) from e
     return _embeddings
 
 def clear_vectorstore():
