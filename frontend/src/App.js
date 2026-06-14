@@ -425,6 +425,17 @@ function AppInner() {
   const [loading, setLoading] = useState({ ingest: false, query: false, gpt: false });
   const [results, setResults] = useState({ ingest: null, query: null, gpt: null });
   const [activeConv, setActiveConv] = useState(null);
+  const [convData, setConvData] = useState(null);
+
+  const fetchConversation = useCallback(async (convId) => {
+    if (!convId || !token) { setConvData(null); return; }
+    try {
+      const data = await requestJson(`${API_BASE}/conversations/${convId}`, { headers: authHeaders(token) });
+      setConvData(data);
+    } catch { setConvData(null); }
+  }, [token]);
+
+  useEffect(() => { fetchConversation(activeConv); }, [activeConv, fetchConversation]);
 
   const isValidUrl = useMemo(() => {
     try { return !!new URL(repoUrl.trim()); }
@@ -483,6 +494,7 @@ function AppInner() {
       const opts = { method: 'POST', headers: { ...authHeaders(token) } };
       const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, opts);
       setResults(s => ({ ...s, gpt: data }));
+      if (activeConv) fetchConversation(activeConv);
       if (data.confidence === 'high') toast('Answer ready (high confidence)', 'success');
       else if (data.confidence === 'medium') toast('Answer ready (medium confidence)', 'info');
     } catch (err) {
@@ -665,16 +677,28 @@ function AppInner() {
                 {!repoUrl && <div className="status-badge error" style={{ marginBottom: 8 }}>No repository connected. Go to Connect Repo tab first.</div>}
                 {user && repoUrl && (
                   <div className="conv-status">
-                    {activeConv ? (
-                      <span className="flow-step" style={{ cursor: 'pointer' }} onClick={() => setActiveConv(null)}>
-                        {repoUrl.replace('https://github.com/', '')} &middot; Conversation #{activeConv} &times;
+                    {activeConv && convData ? (
+                      <span className="flow-step" style={{ cursor: 'pointer' }} onClick={() => { setActiveConv(null); setConvData(null); }}>
+                        {repoUrl.replace('https://github.com/', '')} &middot; {convData.title} &times;
                       </span>
                     ) : (
                       <span className="conv-hint">Create a conversation in the sidebar to save Q&A history</span>
                     )}
                   </div>
                 )}
-                <div className="field">
+                {convData && convData.messages && convData.messages.length > 0 && (
+                  <div className="chat-thread">
+                    {convData.messages.map(m => (
+                      <div key={m.id} className={`chat-message ${m.role}`}>
+                        <div className="chat-role">{m.role === 'user' ? 'You' : 'Assistant'}</div>
+                        <div className="chat-content">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="field" style={convData && convData.messages && convData.messages.length > 0 ? { marginTop: 20 } : {}}>
                   <label>Question</label>
                   <input
                     className="input"
