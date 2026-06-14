@@ -81,17 +81,17 @@ def _has_real_jina_key():
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        if _has_real_jina_key():
-            _embeddings = _JinaEmbeddings()
-        else:
-            try:
-                _embeddings = _LocalEmbeddings()
-            except Exception as e:
+        try:
+            _embeddings = _LocalEmbeddings()
+        except Exception:
+            if _has_real_jina_key():
+                _embeddings = _JinaEmbeddings()
+            else:
                 raise RuntimeError(
-                    "No valid JINA_API_KEY found and local embeddings failed to load.\n"
-                    "Option A: pip install fastembed (for local embeddings, ~150MB RAM)\n"
+                    "No local embeddings (pip install fastembed) and no JINA_API_KEY set.\n"
+                    "Option A: pip install fastembed (local, no API calls)\n"
                     "Option B: set JINA_API_KEY (free at https://jina.ai/embeddings/)"
-                ) from e
+                )
     return _embeddings
 
 def clear_vectorstore():
