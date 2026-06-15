@@ -81,14 +81,7 @@ def _has_real_jina_key():
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        on_render = os.environ.get("RENDER", "").lower() == "true"
-        if on_render:
-            if _has_real_jina_key():
-                _embeddings = _JinaEmbeddings()
-            else:
-                raise RuntimeError("Set JINA_API_KEY in Render env vars")
-        else:
-            _embeddings = _LocalEmbeddings()
+        _embeddings = _LocalEmbeddings()
     return _embeddings
 
 def clear_vectorstore():
