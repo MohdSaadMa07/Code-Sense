@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 faiss-cpu
+fastembed
 langchain-core
 pydantic
 python-multipart
