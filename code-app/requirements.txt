@@ -12,4 +12,4 @@ openai
 sqlalchemy
 python-jose[cryptography]
 httpx
-fastembed
+# fastembed — optional for local dev, install manually if GEMINI_API_KEY is not set

@@ -12,76 +12,59 @@ _vectorstore = None
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
-class _JinaEmbeddings(Embeddings):
+class _GeminiEmbeddings(Embeddings):
     def __init__(self):
-        import requests as _req
-        self._api_key = os.getenv("JINA_API_KEY", "")
-        self._api_url = "https://api.jina.ai/v1/embeddings"
-        self._session = _req.Session()
-        self._session.headers.update({
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json"
-        })
-        self._last_call = 0.0
+        self._api_key = os.getenv("GEMINI_API_KEY", "")
 
-    def _call(self, texts, retries=3):
-        import time
-        single = isinstance(texts, str)
-        texts_list = [texts] if single else texts
-        for attempt in range(retries):
-            now = time.time()
-            since_last = now - self._last_call
-            if since_last < 0.6:
-                time.sleep(0.6 - since_last)
-            self._last_call = time.time()
-            try:
-                resp = self._session.post(self._api_url, json={
-                    "model": "jina-embeddings-v3",
-                    "input": texts_list,
-                    "normalized": True
-                }, timeout=60)
-                if resp.status_code == 429:
-                    if attempt < retries - 1:
-                        time.sleep(2 * (attempt + 1))
-                        continue
-                resp.raise_for_status()
-                data = resp.json()
-                embeddings = [item["embedding"] for item in data["data"]]
-                return embeddings[0] if single else embeddings
-            except Exception as e:
-                if attempt < retries - 1:
-                    time.sleep(2 * (attempt + 1))
-                else:
-                    raise RuntimeError(f"Embedding call failed after {retries} retries: {e}")
+    def _embed(self, text):
+        import requests
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key={self._api_key}",
+            json={"model": "models/text-embedding-004", "content": {"parts": [{"text": text}]}},
+            timeout=30
+        )
+        resp.raise_for_status()
+        return resp.json()["embedding"]["values"]
+
+    def _batch_embed(self, texts):
+        import requests
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1/models/text-embedding-004:batchEmbedContents?key={self._api_key}",
+            json={"requests": [
+                {"model": "models/text-embedding-004", "content": {"parts": [{"text": t}]}}
+                for t in texts
+            ]},
+            timeout=60
+        )
+        resp.raise_for_status()
+        return [e["values"] for e in resp.json()["embeddings"]]
 
     def embed_query(self, text: str):
-        return self._call(text)
+        return self._embed(text)
 
     def embed_documents(self, texts: list[str]):
-        return self._call(texts)
-
-
-class _LocalEmbeddings(Embeddings):
-    def __init__(self):
-        from fastembed import TextEmbedding
-        self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    def embed_query(self, text: str):
-        return list(self._model.embed(text))[0].tolist()
-
-    def embed_documents(self, texts: list[str]):
-        return [e.tolist() for e in self._model.embed(texts)]
-
-
-def _has_real_jina_key():
-    key = os.getenv("JINA_API_KEY", "")
-    return bool(key) and "your_free_key" not in key
+        return self._batch_embed(texts)
 
 
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _LocalEmbeddings()
+        key = os.getenv("GEMINI_API_KEY", "")
+        if not key or "your_key" in key:
+            try:
+                from fastembed import TextEmbedding
+                class _Local(Embeddings):
+                    def __init__(self):
+                        self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+                    def embed_query(self, text):
+                        return list(self._model.embed(text))[0].tolist()
+                    def embed_documents(self, texts):
+                        return [e.tolist() for e in self._model.embed(texts)]
+                _embeddings = _Local()
+            except Exception:
+                raise RuntimeError("Set GEMINI_API_KEY (free at https://aistudio.google.com/) or install fastembed")
+        else:
+            _embeddings = _GeminiEmbeddings()
     return _embeddings
 
 def clear_vectorstore():
