@@ -24,28 +24,21 @@ def _get_embeddings_class():
         return _LocalEmbeddings()
     except ImportError:
         pass
-    api_key = os.getenv("JINA_API_KEY", "")
-    if api_key and "your_key" not in api_key:
-        import requests
-        class _JinaEmbeddings(Embeddings):
-            def __init__(self, key):
-                self._session = requests.Session()
-                self._session.headers.update({"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-                self._api_url = "https://api.jina.ai/v1/embeddings"
+    hf_token = os.getenv("HF_TOKEN", "")
+    if hf_token:
+        from huggingface_hub import InferenceClient
+        _hf_client = InferenceClient(token=hf_token)
+        MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+        class _HFEmbeddings(Embeddings):
             def embed_query(self, text):
-                resp = self._session.post(self._api_url, json={"model": "jina-embeddings-v3", "input": [text], "normalized": True, "task": "retrieval.query"}, timeout=30)
-                resp.raise_for_status()
-                return resp.json()["data"][0]["embedding"]
+                return _hf_client.feature_extraction([text], model=MODEL)[0].tolist()
             def embed_documents(self, texts):
-                all_embeddings = []
-                for i in range(0, len(texts), 64):
-                    batch = texts[i:i+64]
-                    resp = self._session.post(self._api_url, json={"model": "jina-embeddings-v3", "input": batch, "normalized": True, "task": "retrieval.passage"}, timeout=60)
-                    resp.raise_for_status()
-                    all_embeddings.extend(item["embedding"] for item in resp.json()["data"])
-                return all_embeddings
-        return _JinaEmbeddings(api_key)
-    raise RuntimeError("No embedding backend available. Install fastembed (pip install fastembed) or set JINA_API_KEY.")
+                return _hf_client.feature_extraction(texts, model=MODEL).tolist()
+        return _HFEmbeddings()
+    raise RuntimeError(
+        "No embedding backend. For local dev: pip install fastembed. "
+        "For production: set HF_TOKEN (free at huggingface.co/settings/tokens)."
+    )
 
 
 class _FAISS:
