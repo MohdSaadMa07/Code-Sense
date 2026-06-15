@@ -1,13 +1,10 @@
 fastapi
 uvicorn
-faiss-cpu
-huggingface-hub
 langchain-core
 pydantic
 python-multipart
 python-dotenv
 requests
-numpy
 openai
 sqlalchemy
 python-jose[cryptography]
