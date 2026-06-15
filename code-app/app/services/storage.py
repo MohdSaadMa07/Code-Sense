@@ -9,9 +9,14 @@ from langchain_core.documents import Document
 from app.services.ast_chunker import chunk_documents_with_ast
 
 
+class _Docstore(dict):
+    def search(self, doc_id: str):
+        return self.get(doc_id)
+
+
 class _BM25Index:
     def __init__(self):
-        self.docstore: dict[str, Document] = {}
+        self.docstore: _Docstore = _Docstore()
         self.index_to_docstore_id: dict[int, str] = {}
         self.term_doc_freq: dict[str, set[str]] = {}
         self.doc_lengths: dict[str, int] = {}
@@ -76,8 +81,6 @@ class _BM25Index:
         sorted_docs = sorted(scores.items(), key=lambda x: -x[1])
         return [(self.docstore[did], sc) for did, sc in sorted_docs[:k]]
 
-    def search(self, doc_id: str):
-        return self.docstore.get(doc_id)
 
     @staticmethod
     def _tokenize(text: str):
