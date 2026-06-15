@@ -466,9 +466,12 @@ label {
 /* ---- Main Area ---- */
 .main-area {
   flex: 1;
+  min-height: 0;
   padding: 40px 48px;
   max-width: 1000px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes fadeInScale {
@@ -642,6 +645,12 @@ label {
 .feature-page {
   animation: fadeInScale 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   animation-fill-mode: both;
+}
+.feature-page.qa-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .feature-header { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--border-subtle); }
@@ -1015,14 +1024,45 @@ label {
 .conv-hint { font-size: 0.75rem; color: var(--text-muted); font-style: italic; }
 .conv-repo-label { font-size: 0.65rem; font-weight: 600; color: var(--text-muted); padding: 0 12px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px dashed var(--border-subtle); margin-bottom: 8px; font-family: 'SF Mono', monospace; }
 
+/* ---- QA Layout ---- */
+.qa-page .feature-header { flex-shrink: 0; }
+.qa-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+.qa-top-bar {
+  flex-shrink: 0;
+  padding-bottom: 12px;
+}
+.qa-messages {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+.qa-input-area {
+  flex-shrink: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 12px;
+}
+.qa-input-area .field-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
 /* ---- Chat Thread ---- */
 .chat-thread {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 4px 0;
 }
 .chat-message {
   display: flex;

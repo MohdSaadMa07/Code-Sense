@@ -668,50 +668,59 @@ function AppInner() {
           )}
 
           {tab === 'qa' && (
-            <section className="feature-page fade-in">
+            <section className="feature-page fade-in qa-page">
               <div className="feature-header">
                 <h2>Ask the Codebase</h2>
                 <p>Get instant, grounded answers directly from your repository's code.</p>
+                {!repoUrl && <div className="status-badge error" style={{ marginTop: 12 }}>No repository connected. Go to Connect Repo tab first.</div>}
               </div>
-              <div className="feature-body">
-                {!repoUrl && <div className="status-badge error" style={{ marginBottom: 8 }}>No repository connected. Go to Connect Repo tab first.</div>}
-                {user && repoUrl && (
-                  <div className="conv-status">
-                    {activeConv && convData ? (
-                      <span className="flow-step" style={{ cursor: 'pointer' }} onClick={() => { setActiveConv(null); setConvData(null); }}>
-                        {repoUrl.replace('https://github.com/', '')} &middot; {convData.title} &times;
-                      </span>
+              {repoUrl && (
+                <div className="qa-layout">
+                  <div className="qa-top-bar">
+                    {user ? (
+                      activeConv && convData ? (
+                        <span className="flow-step" style={{ cursor: 'pointer' }} onClick={() => { setActiveConv(null); setConvData(null); }}>
+                          {convData.title} &times;
+                        </span>
+                      ) : (
+                        <span className="conv-hint">Create a conversation in the sidebar to save Q&A history</span>
+                      )
                     ) : (
-                      <span className="conv-hint">Create a conversation in the sidebar to save Q&A history</span>
+                      <span className="conv-hint">Sign in to save conversation history</span>
                     )}
                   </div>
-                )}
-                {convData && convData.messages && convData.messages.length > 0 && (
-                  <div className="chat-thread">
-                    {convData.messages.map(m => (
-                      <div key={m.id} className={`chat-message ${m.role}`}>
-                        <div className="chat-role">{m.role === 'user' ? 'You' : 'Assistant'}</div>
-                        <div className="chat-content">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                        </div>
+                  <div className="qa-messages">
+                    {convData && convData.messages && convData.messages.length > 0 && (
+                      <div className="chat-thread">
+                        {convData.messages.map(m => (
+                          <div key={m.id} className={`chat-message ${m.role}`}>
+                            <div className="chat-role">{m.role === 'user' ? 'You' : 'Assistant'}</div>
+                            <div className="chat-content">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    {(results.gpt || loading.gpt) && <GptResult data={results.gpt} loading={loading.gpt} />}
                   </div>
-                )}
-                <div className="field" style={convData && convData.messages && convData.messages.length > 0 ? { marginTop: 20 } : {}}>
-                  <label>Question</label>
-                  <input
-                    className="input"
-                    value={gptPrompt}
-                    onChange={e => setGptPrompt(e.target.value)}
-                    placeholder="What does this project do?"
-                  />
+                  <div className="qa-input-area">
+                    <div className="field-row" style={{ flex: 1 }}>
+                      <div className="field" style={{ flex: 1, margin: 0 }}>
+                        <input
+                          className="input"
+                          value={gptPrompt}
+                          onChange={e => setGptPrompt(e.target.value)}
+                          placeholder="Ask a question about this codebase..."
+                        />
+                      </div>
+                      <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt}>
+                        {loading.gpt ? 'Generating...' : 'Ask AI'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <button className="primary-btn" onClick={handleGpt} disabled={loading.gpt || !repoUrl}>
-                  {loading.gpt ? 'Generating...' : repoUrl ? 'Ask AI' : 'Connect a repo first'}
-                </button>
-                <GptResult data={results.gpt} loading={loading.gpt} />
-              </div>
+              )}
             </section>
           )}
 
