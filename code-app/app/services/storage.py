@@ -81,7 +81,7 @@ def _has_real_jina_key():
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        on_render = os.environ.get("RENDER") == "1"
+        on_render = os.environ.get("RENDER", "").lower() == "true"
         if on_render:
             if _has_real_jina_key():
                 _embeddings = _JinaEmbeddings()
