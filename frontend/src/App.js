@@ -703,6 +703,9 @@ function AppInner() {
                       </div>
                     )}
                     {(results.gpt || loading.gpt) && <GptResult data={results.gpt} loading={loading.gpt} />}
+                    {!convData?.messages?.length && !loading.gpt && !results.gpt && (
+                      <div className="qa-empty-spacer" />
+                    )}
                   </div>
                   <div className="qa-input-area">
                     <div className="field-row" style={{ flex: 1 }}>
