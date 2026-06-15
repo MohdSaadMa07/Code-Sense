@@ -561,7 +561,7 @@ function AppInner() {
 
   return (
     <div className="app">
-      <div className="app-layout">
+      <div className="app-layout" style={tab === 'qa' ? { height: '100vh', minHeight: '100vh' } : undefined}>
         <aside className="sidebar">
           <span className="brand"><span className="brand-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -675,7 +675,7 @@ function AppInner() {
                 {!repoUrl && <div className="status-badge error" style={{ marginTop: 12 }}>No repository connected. Go to Connect Repo tab first.</div>}
               </div>
               {repoUrl && (
-                <div className="qa-layout">
+                  <div className="qa-layout" style={{ height: '100%' }}>
                   <div className="qa-top-bar">
                     {user ? (
                       activeConv && convData ? (
