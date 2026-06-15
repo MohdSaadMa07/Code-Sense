@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 const API_BASE = (
   window.location.hostname === 'localhost'
     ? 'http://127.0.0.1:8000'
-    : process.env.REACT_APP_API_URL || ''
+    : process.env.REACT_APP_API_URL || 'https://code-sense-1.onrender.com'
 );
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 
