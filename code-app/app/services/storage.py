@@ -1,11 +1,66 @@
 import hashlib
 import os
+import pickle
+import uuid
 from pathlib import Path
 
-from langchain_community.vectorstores import FAISS
+import faiss
+import numpy as np
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from app.services.ast_chunker import chunk_documents_with_ast
+
+
+class _FAISS:
+    def __init__(self, embedding_function, index, docstore, index_to_docstore_id):
+        self.embedding_function = embedding_function
+        self.index = index
+        self.docstore = docstore
+        self.index_to_docstore_id = index_to_docstore_id
+
+    @classmethod
+    def load_local(cls, folder_path, embeddings, allow_dangerous_deserialization=True):
+        index = faiss.read_index(os.path.join(folder_path, "index.faiss"))
+        with open(os.path.join(folder_path, "docstore.pkl"), "rb") as f:
+            docstore = pickle.load(f)
+        with open(os.path.join(folder_path, "id_map.pkl"), "rb") as f:
+            index_to_docstore_id = pickle.load(f)
+        return cls(embeddings, index, docstore, index_to_docstore_id)
+
+    @classmethod
+    def from_empty(cls, embeddings, dimension):
+        index = faiss.IndexFlatL2(dimension)
+        return cls(embeddings, index, {}, {})
+
+    def save_local(self, folder_path):
+        os.makedirs(folder_path, exist_ok=True)
+        faiss.write_index(self.index, os.path.join(folder_path, "index.faiss"))
+        with open(os.path.join(folder_path, "docstore.pkl"), "wb") as f:
+            pickle.dump(self.docstore, f)
+        with open(os.path.join(folder_path, "id_map.pkl"), "wb") as f:
+            pickle.dump(self.index_to_docstore_id, f)
+
+    def add_documents(self, documents):
+        texts = [d.page_content for d in documents]
+        vectors = self.embedding_function.embed_documents(texts)
+        ids = [str(uuid.uuid4()) for _ in documents]
+        start = self.index.ntotal
+        self.index.add(np.array(vectors, dtype=np.float32))
+        for i, doc in enumerate(documents):
+            self.docstore[ids[i]] = doc
+            self.index_to_docstore_id[start + i] = ids[i]
+
+    def similarity_search_with_score(self, query, k=4):
+        vec = self.embedding_function.embed_query(query)
+        scores, indices = self.index.search(np.array([vec], dtype=np.float32), k)
+        docs = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx == -1:
+                continue
+            doc_id = self.index_to_docstore_id.get(int(idx))
+            if doc_id and doc_id in self.docstore:
+                docs.append((self.docstore[doc_id], float(score)))
+        return docs
 
 _embeddings = None
 _vectorstore = None
@@ -83,7 +138,7 @@ def get_vectorstore():
         # Try loading existing index from disk first
         if os.path.isdir(VECTORSTORE_PATH) and os.path.isfile(os.path.join(VECTORSTORE_PATH, "index.faiss")):
             try:
-                _vectorstore = FAISS.load_local(
+                _vectorstore = _FAISS.load_local(
                     VECTORSTORE_PATH,
                     embeddings,
                     allow_dangerous_deserialization=True,
@@ -92,18 +147,8 @@ def get_vectorstore():
                 return _vectorstore
             except Exception as e:
                 print(f"[WARN] Could not load existing FAISS index, creating new empty one: {e}")
-        # Fall back to fresh empty FAISS init
         dummy_embedding = embeddings.embed_query(" ")
-        dimension = len(dummy_embedding)
-        import faiss
-        from langchain_community.docstore.in_memory import InMemoryDocstore
-        index = faiss.IndexFlatL2(dimension)
-        _vectorstore = FAISS(
-            embedding_function=embeddings,
-            index=index,
-            docstore=InMemoryDocstore({}),
-            index_to_docstore_id={}
-        )
+        _vectorstore = _FAISS.from_empty(embeddings, len(dummy_embedding))
     return _vectorstore
 
 

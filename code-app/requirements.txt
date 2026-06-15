@@ -1,8 +1,7 @@
 fastapi
 uvicorn
-langchain-community
-langchain-core
 faiss-cpu
+langchain-core
 pydantic
 python-multipart
 python-dotenv
@@ -12,4 +11,3 @@ openai
 sqlalchemy
 python-jose[cryptography]
 httpx
-# fastembed — optional for local dev, install manually if GEMINI_API_KEY is not set
