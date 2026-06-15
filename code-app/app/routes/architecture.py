@@ -202,7 +202,7 @@ def _detect_stack(files_contents: dict) -> dict:
 def clear_index():
     from app.services.storage import clear_vectorstore, get_vectorstore
     vs = get_vectorstore()
-    count = vs.index.ntotal if vs and hasattr(vs, "index") else 0
+    count = vs.num_docs if vs and hasattr(vs, "num_docs") else 0
     clear_vectorstore()
     return {"cleared": True, "vectors_removed": count}
 

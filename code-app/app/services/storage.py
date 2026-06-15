@@ -76,6 +76,9 @@ class _BM25Index:
         sorted_docs = sorted(scores.items(), key=lambda x: -x[1])
         return [(self.docstore[did], sc) for did, sc in sorted_docs[:k]]
 
+    def search(self, doc_id: str):
+        return self.docstore.get(doc_id)
+
     @staticmethod
     def _tokenize(text: str):
         import re
