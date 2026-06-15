@@ -1,9 +1,6 @@
 import hashlib
-import json
 import os
 import pickle
-import subprocess
-import sys
 import uuid
 from pathlib import Path
 
@@ -14,38 +11,41 @@ from langchain_core.embeddings import Embeddings
 from app.services.ast_chunker import chunk_documents_with_ast
 
 
-_EMBED_SCRIPT = r"""
-import json, sys
-from fastembed import TextEmbedding
-model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
-data = json.load(sys.stdin)
-texts = data["texts"]
-if data["single"]:
-    result = list(model.embed(texts[0]))[0].tolist()
-else:
-    result = [e.tolist() for e in model.embed(texts)]
-json.dump(result, sys.stdout)
-"""
-
-
-def _embed_in_subprocess(texts, single=False):
-    proc = subprocess.Popen(
-        [sys.executable, "-c", _EMBED_SCRIPT],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        text=True
-    )
-    out, _ = proc.communicate(json.dumps({"texts": texts, "single": single}))
-    if proc.returncode != 0:
-        raise RuntimeError("Embedding subprocess failed")
-    return json.loads(out)
-
-
-class _SubprocessEmbeddings(Embeddings):
-    def embed_query(self, text: str):
-        return _embed_in_subprocess([text], single=True)
-
-    def embed_documents(self, texts: list[str]):
-        return _embed_in_subprocess(texts, single=False)
+def _get_embeddings_class():
+    try:
+        from fastembed import TextEmbedding
+        class _LocalEmbeddings(Embeddings):
+            def __init__(self):
+                self._model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            def embed_query(self, text: str):
+                return list(self._model.embed(text))[0].tolist()
+            def embed_documents(self, texts: list[str]):
+                return [e.tolist() for e in self._model.embed(texts)]
+        return _LocalEmbeddings()
+    except ImportError:
+        pass
+    api_key = os.getenv("JINA_API_KEY", "")
+    if api_key and "your_key" not in api_key:
+        import requests
+        class _JinaEmbeddings(Embeddings):
+            def __init__(self, key):
+                self._session = requests.Session()
+                self._session.headers.update({"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+                self._api_url = "https://api.jina.ai/v1/embeddings"
+            def embed_query(self, text):
+                resp = self._session.post(self._api_url, json={"model": "jina-embeddings-v3", "input": [text], "normalized": True, "task": "retrieval.query"}, timeout=30)
+                resp.raise_for_status()
+                return resp.json()["data"][0]["embedding"]
+            def embed_documents(self, texts):
+                all_embeddings = []
+                for i in range(0, len(texts), 64):
+                    batch = texts[i:i+64]
+                    resp = self._session.post(self._api_url, json={"model": "jina-embeddings-v3", "input": batch, "normalized": True, "task": "retrieval.passage"}, timeout=60)
+                    resp.raise_for_status()
+                    all_embeddings.extend(item["embedding"] for item in resp.json()["data"])
+                return all_embeddings
+        return _JinaEmbeddings(api_key)
+    raise RuntimeError("No embedding backend available. Install fastembed (pip install fastembed) or set JINA_API_KEY.")
 
 
 class _FAISS:
@@ -107,7 +107,7 @@ VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorst
 def get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = _SubprocessEmbeddings()
+        _embeddings = _get_embeddings_class()
     return _embeddings
 
 def clear_vectorstore():
