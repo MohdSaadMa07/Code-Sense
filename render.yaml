@@ -3,10 +3,8 @@ services:
     name: codesense-api
     env: python
     buildCommand: |
-      pip install torch transformers sentence-transformers optimum optimum-onnx
-      cd code-app && python -c "from app.services.onnx_embeddings import export_onnx; export_onnx()"
-      pip uninstall -y torch transformers sentence-transformers optimum optimum-onnx
       pip install -r code-app/requirements.txt
+      cd code-app && python download_onnx_model.py
     startCommand: cd code-app && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONUNBUFFERED

@@ -12,4 +12,5 @@ httpx
 faiss-cpu
 onnxruntime
 tokenizers
+huggingface-hub
 numpy
