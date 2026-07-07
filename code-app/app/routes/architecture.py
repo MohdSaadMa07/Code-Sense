@@ -1,3 +1,4 @@
+import os
 import re
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException
@@ -198,6 +199,82 @@ def _detect_stack(files_contents: dict) -> dict:
     return {k: sorted(v) for k, v in stack.items() if v}
 
 
+def _build_file_tree_architecture(doc_ids, vs, stack):
+    seen_paths = {}
+    for doc_id in doc_ids:
+        try:
+            doc = vs.docstore.search(doc_id)
+        except Exception:
+            continue
+        if not doc or not hasattr(doc, "metadata"):
+            continue
+        path = doc.metadata.get("path") or doc.metadata.get("filename")
+        if not path:
+            continue
+        content = doc.page_content or ""
+        if path not in seen_paths:
+            seen_paths[path] = content
+
+    root_dirs = {}
+    for path in seen_paths:
+        parts = path.replace("\\", "/").split("/")
+        root = parts[0] if len(parts) > 1 else "/"
+        if root not in root_dirs:
+            root_dirs[root] = {"files": [], "imports": set()}
+        root_dirs[root]["files"].append(path)
+
+        content = seen_paths.get(path, "").lower()
+        for m in re.finditer(r'(?:import|from)\s+(\S+)', content):
+            imp = m.group(1).split(".")[0]
+            if imp in root_dirs and imp != root:
+                root_dirs[root]["imports"].add(imp)
+
+    all_roots = sorted(root_dirs.keys())
+    node_count = 0
+    lines = ["graph LR"]
+
+    nodes = {}
+    for root in all_roots:
+        nid = f"N{node_count}"
+        node_count += 1
+        fcount = len(root_dirs[root]["files"])
+        label = f"{root if root != '/' else 'root'} ({fcount})"
+        lines.append(f'    {nid}["{label}"]')
+        style = "fill:#0d1d0d,stroke:#34d399,stroke-width:2px" if root in ("frontend", "src", "/") else "fill:#0d0d1d,stroke:#6366f1,stroke-width:2px"
+        lines.append(f'    style {nid} {style}')
+        nodes[root] = nid
+
+    for root, info in root_dirs.items():
+        for dep in info["imports"]:
+            if dep in nodes:
+                lines.append(f'  {nodes[root]} --> {nodes[dep]}')
+
+    ext_items = stack.get("database", []) + stack.get("other", [])
+    ext_nodes = {}
+    if ext_items:
+        lines.append("  subgraph External")
+        for item in ext_items:
+            eid = f"E_{item[:6].lower()}"
+            lines.append(f'    {eid}[("{item}")]')
+            ext_nodes[item] = eid
+            lines.append(f'    style {eid} fill:#111122,stroke:#f59e0b,stroke-width:2px')
+        lines.append("  end")
+
+    for root, info in root_dirs.items():
+        if root in nodes and ext_nodes:
+            lines.append(f'  {nodes[root]} --> {next(iter(ext_nodes.values()))}')
+
+    return {
+        "mermaid": "\n".join(lines),
+        "module_graph": {r: len(root_dirs[r]["files"]) for r in all_roots},
+        "layers": {"filesystem": all_roots},
+        "entry_points": all_roots[:1],
+        "tech": {k: v for k, v in stack.items() if v},
+        "modules_found": len(all_roots),
+        "dependencies": sum(len(v["imports"]) for v in root_dirs.values()),
+    }
+
+
 @router.post("/clear")
 def clear_index():
     from app.services.storage import clear_vectorstore, get_vectorstore
@@ -261,10 +338,10 @@ def generate_architecture():
                 if domain:
                     endpoints.append((path, domain, False, path, True))
 
-        if not endpoints and not route_file_count:
-            raise HTTPException(status_code=400, detail="No routes or pages detected")
-
         stack = _detect_stack(config_files)
+
+        if not endpoints and not route_file_count:
+            return _build_file_tree_architecture(doc_ids, vs, stack)
 
         domain_info = defaultdict(lambda: {"routes": [], "files": [], "layer": None})
         for ep, domain, is_route, fpath, is_fe in endpoints:
