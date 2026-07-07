@@ -13,6 +13,7 @@ from app.routes.conversations import router as conversations_router
 from app.database import init_db
 from app.models import User, Conversation, Message
 
+import threading
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -42,6 +43,12 @@ app.include_router(symbols_router)
 app.include_router(architecture_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
+
+@app.on_event("startup")
+def _start_model_download():
+    from app.services.onnx_embeddings import _ensure_model
+    t = threading.Thread(target=_ensure_model, daemon=True)
+    t.start()
 
 FRONTEND_BUILD = Path(__file__).resolve().parents[2] / "frontend" / "build"
 if FRONTEND_BUILD.is_dir():

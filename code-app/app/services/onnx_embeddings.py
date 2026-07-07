@@ -1,17 +1,19 @@
 import os
+import threading
+import requests
 import numpy as np
 import onnxruntime as ort
 from pathlib import Path
 from tokenizers import Tokenizer
 
-CACHE_DIR = Path(__file__).resolve().parent / ".model_cache"
+CACHE_DIR = Path("/tmp/codesense_model")
 ONNX_PATH = CACHE_DIR / "model.onnx"
 TOKENIZER_PATH = CACHE_DIR / "tokenizer.json"
 
 _session = None
 _tokenizer = None
-_CLS_TOKEN_ID = 101
-_SEP_TOKEN_ID = 102
+_download_lock = threading.Lock()
+_download_done = threading.Event()
 _PAD_TOKEN_ID = 0
 
 _FILES = [
@@ -25,23 +27,28 @@ _FILES = [
 
 
 def _ensure_model():
-    if ONNX_PATH.exists():
+    if _download_done.is_set():
         return
-
-    import requests
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    for src, dst_name in _FILES:
-        dst = CACHE_DIR / dst_name
-        if dst.exists():
-            continue
-        url = f"https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/{src}"
-        print(f"[ONNX] Downloading {src} ...")
-        resp = requests.get(url, stream=True, timeout=120)
-        resp.raise_for_status()
-        with open(dst, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
-        print(f"[ONNX] Saved {dst_name}")
+    if ONNX_PATH.exists():
+        _download_done.set()
+        return
+    with _download_lock:
+        if _download_done.is_set():
+            return
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        for src, dst_name in _FILES:
+            dst = CACHE_DIR / dst_name
+            if dst.exists():
+                continue
+            url = f"https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/{src}"
+            print(f"[ONNX] Downloading {src} ...")
+            resp = requests.get(url, stream=True, timeout=300)
+            resp.raise_for_status()
+            with open(dst, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print(f"[ONNX] Saved {dst_name}")
+        _download_done.set()
 
 
 def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
@@ -82,18 +89,3 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
         cls_embeddings = cls_embeddings / np.clip(norms, 1e-12, None)
 
     return cls_embeddings.astype(np.float32)
-
-
-def export_onnx():
-    """Export the model to ONNX (requires torch + transformers)."""
-    from optimum.onnxruntime import ORTModelForFeatureExtraction
-    from transformers import AutoTokenizer as HFTokenizer
-
-    os.makedirs(CACHE_DIR, exist_ok=True)
-
-    model = ORTModelForFeatureExtraction.from_pretrained("BAAI/bge-small-en-v1.5", export=True)
-    tokenizer = HFTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
-
-    model.save_pretrained(CACHE_DIR)
-    tokenizer.save_pretrained(CACHE_DIR)
-    print(f"Model exported to {CACHE_DIR}")

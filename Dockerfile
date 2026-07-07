@@ -9,11 +9,9 @@ FROM python:3.10-slim AS base
 WORKDIR /app
 
 COPY code-app/requirements.txt .
-COPY code-app/download_onnx_model.py .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 COPY code-app/app ./app
 COPY scripts ./scripts
-RUN python download_onnx_model.py && pip cache purge
 
 COPY --from=frontend /build/build /frontend/build
 

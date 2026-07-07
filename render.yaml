@@ -2,9 +2,7 @@ services:
   - type: web
     name: codesense-api
     env: python
-    buildCommand: |
-      pip install -r code-app/requirements.txt
-      cd code-app && python download_onnx_model.py
+    buildCommand: pip install -r code-app/requirements.txt
     startCommand: cd code-app && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONUNBUFFERED
