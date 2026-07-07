@@ -36,6 +36,9 @@ vectorstore/
 # Scripts / dev tools
 scripts/
 
+# ONNX model cache (exported during build)
+.model_cache/
+
 # Frontend build
 frontend/build/
 frontend/node_modules/

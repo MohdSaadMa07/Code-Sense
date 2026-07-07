@@ -10,5 +10,6 @@ sqlalchemy
 python-jose[cryptography]
 httpx
 faiss-cpu
-sentence-transformers[onnx]
+onnxruntime
+tokenizers
 numpy
