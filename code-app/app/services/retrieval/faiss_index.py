@@ -4,15 +4,7 @@ import faiss
 import numpy as np
 
 from langchain_core.documents import Document
-
-_embedding_model = None
-
-def get_embedding_model():
-    global _embedding_model
-    if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-        _embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5")
-    return _embedding_model
+from app.services.onnx_embeddings import encode as get_embeddings
 
 class FAISSRetriever:
     def __init__(self, dimension=384):
@@ -49,11 +41,10 @@ class FAISSRetriever:
         if not documents:
             return
             
-        model = get_embedding_model()
         texts = [doc.page_content for doc in documents]
         
         # Generate normalized embeddings
-        embeddings = model.encode(texts, normalize_embeddings=True)
+        embeddings = get_embeddings(texts, normalize_embeddings=True)
         
         # Keep track of the current number of vectors
         start_id = self.index.ntotal
@@ -70,9 +61,7 @@ class FAISSRetriever:
         if self.index.ntotal == 0:
             return []
             
-        model = get_embedding_model()
-        query_vector = model.encode([query], normalize_embeddings=True)
-        query_vector = np.array(query_vector, dtype=np.float32)
+        query_vector = get_embeddings([query], normalize_embeddings=True).astype(np.float32)
         
         distances, indices = self.index.search(query_vector, k)
         

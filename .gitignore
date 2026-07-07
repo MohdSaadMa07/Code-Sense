@@ -33,6 +33,9 @@ vectorstore/
 # Local Database
 *.db
 
+# Scripts / dev tools
+scripts/
+
 # Frontend build
 frontend/build/
 frontend/node_modules/
