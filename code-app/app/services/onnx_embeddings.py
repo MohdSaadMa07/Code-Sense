@@ -14,9 +14,40 @@ _CLS_TOKEN_ID = 101
 _SEP_TOKEN_ID = 102
 _PAD_TOKEN_ID = 0
 
+_FILES = [
+    ("onnx/model.onnx", "model.onnx"),
+    ("tokenizer.json", "tokenizer.json"),
+    ("config.json", "config.json"),
+    ("special_tokens_map.json", "special_tokens_map.json"),
+    ("tokenizer_config.json", "tokenizer_config.json"),
+    ("vocab.txt", "vocab.txt"),
+]
+
+
+def _ensure_model():
+    if ONNX_PATH.exists():
+        return
+
+    import requests
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    for src, dst_name in _FILES:
+        dst = CACHE_DIR / dst_name
+        if dst.exists():
+            continue
+        url = f"https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/{src}"
+        print(f"[ONNX] Downloading {src} ...")
+        resp = requests.get(url, stream=True, timeout=120)
+        resp.raise_for_status()
+        with open(dst, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"[ONNX] Saved {dst_name}")
+
 
 def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
     global _session, _tokenizer
+
+    _ensure_model()
 
     if _session is None:
         _session = ort.InferenceSession(str(ONNX_PATH))
