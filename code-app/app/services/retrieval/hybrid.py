@@ -14,6 +14,14 @@ class HybridRetriever:
         # We can rely on BM25 num_docs as the ground truth for total doc count
         return self.bm25.num_docs
 
+    @property
+    def docstore(self):
+        return self.faiss.docstore
+
+    @property
+    def index_to_docstore_id(self):
+        return self.faiss.faiss_id_to_doc_id
+
     @classmethod
     def load_local(cls, folder_path: str):
         idx = cls()
