@@ -1,12 +1,12 @@
 from typing import List, Tuple
 from langchain_core.documents import Document
 
-from app.services.retrieval.bm25 import BM25Retriever
+from app.services.retrieval.bm25 import BM25Retriever, _Docstore
 from app.services.retrieval.faiss_index import FAISSRetriever
 
 class HybridRetriever:
     def __init__(self):
-        self._shared_docstore = {}
+        self._shared_docstore = _Docstore()
         self.bm25 = BM25Retriever(docstore=self._shared_docstore)
         self.faiss = FAISSRetriever(docstore=self._shared_docstore)
 
