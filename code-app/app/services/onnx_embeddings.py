@@ -16,6 +16,18 @@ _download_lock = threading.Lock()
 _download_done = threading.Event()
 _PAD_TOKEN_ID = 0
 
+def _make_session_opts():
+    opts = ort.SessionOptions()
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    opts.intra_op_num_threads = 1
+    opts.inter_op_num_threads = 1
+    opts.enable_cpu_mem_arena = False
+    opts.enable_mem_pattern = False
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    opts.enable_profiling = False
+    return opts
+
+
 _FILES = [
     ("onnx/model.onnx", "model.onnx"),
     ("tokenizer.json", "tokenizer.json"),
@@ -48,7 +60,9 @@ def _ensure_model():
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
             print(f"[ONNX] Saved {dst_name}")
+            del resp
         _download_done.set()
+        import gc; gc.collect()
 
 
 def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
@@ -57,7 +71,11 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
     _ensure_model()
 
     if _session is None:
-        _session = ort.InferenceSession(str(ONNX_PATH))
+        _session = ort.InferenceSession(
+            str(ONNX_PATH),
+            providers=["CPUExecutionProvider"],
+            sess_options=_make_session_opts(),
+        )
     if _tokenizer is None:
         _tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
 

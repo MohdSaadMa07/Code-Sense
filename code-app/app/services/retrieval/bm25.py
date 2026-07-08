@@ -10,8 +10,8 @@ class _Docstore(dict):
         return self.get(doc_id)
 
 class BM25Retriever:
-    def __init__(self):
-        self.docstore: _Docstore = _Docstore()
+    def __init__(self, docstore: dict | None = None):
+        self.docstore: _Docstore = docstore if docstore is not None else _Docstore()
         self.index_to_docstore_id: dict[int, str] = {}
         self.term_doc_freq: dict[str, set[str]] = {}
         self.doc_lengths: dict[str, int] = {}

@@ -7,12 +7,12 @@ from langchain_core.documents import Document
 from app.services.onnx_embeddings import encode as get_embeddings
 
 class FAISSRetriever:
-    def __init__(self, dimension=384):
+    def __init__(self, dimension=384, docstore: dict | None = None):
         # BAAI/bge-small-en-v1.5 has 384 dimensions
         self.dimension = dimension
         self.index = faiss.IndexFlatIP(self.dimension)
         self.faiss_id_to_doc_id: dict[int, str] = {}
-        self.docstore = {}
+        self.docstore = docstore if docstore is not None else {}
 
     @classmethod
     def load_local(cls, folder_path: str):

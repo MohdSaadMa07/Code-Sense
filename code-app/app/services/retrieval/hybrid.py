@@ -6,8 +6,9 @@ from app.services.retrieval.faiss_index import FAISSRetriever
 
 class HybridRetriever:
     def __init__(self):
-        self.bm25 = BM25Retriever()
-        self.faiss = FAISSRetriever()
+        self._shared_docstore = {}
+        self.bm25 = BM25Retriever(docstore=self._shared_docstore)
+        self.faiss = FAISSRetriever(docstore=self._shared_docstore)
 
     @property
     def num_docs(self):
@@ -27,6 +28,8 @@ class HybridRetriever:
         idx = cls()
         idx.bm25 = BM25Retriever.load_local(folder_path)
         idx.faiss = FAISSRetriever.load_local(folder_path)
+        idx._shared_docstore = idx.bm25.docstore
+        idx.faiss.docstore = idx.bm25.docstore
         return idx
 
     def save_local(self, folder_path: str):

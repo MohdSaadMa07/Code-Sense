@@ -1,3 +1,4 @@
+import gc
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.github_loader import parse_github_repo, collect_repo_files
@@ -52,12 +53,17 @@ def ingest_github_repo(request: GitHubIngestRequest):
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Ingestion failed while indexing documents: {exc}") from exc
 
+        sample = files[0].get("path") if files else None
+        file_count = len(files)
+        del files, documents
+        gc.collect()
+
         return {
             "status": "success",
             "repo": f"{owner}/{repo}",
-            "files_ingested": len(files),
+            "files_ingested": file_count,
             "chunks_ingested": stored_count,
-            "sample_file": files[0].get("path") if files else None,
+            "sample_file": sample,
         }
     except HTTPException:
         raise
