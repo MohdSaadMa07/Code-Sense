@@ -5,16 +5,15 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-FROM python:3.10-slim AS base
+FROM python:3.12-slim
 WORKDIR /app
 
 COPY code-app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 COPY code-app/app ./app
-COPY scripts ./scripts
 
 COPY --from=frontend /build/build /frontend/build
 
 ENV PYTHONPATH=/app
-EXPOSE 8000
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+EXPOSE 7860
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}
