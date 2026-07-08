@@ -284,7 +284,7 @@ def clear_index():
     return {"cleared": True, "vectors_removed": count}
 
 
-@router.get("/debug")
+@router.post("/debug")
 def debug_vectorstore():
     from app.services.storage import get_vectorstore
     vs = get_vectorstore()
