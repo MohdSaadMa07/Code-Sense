@@ -426,6 +426,7 @@ function AppInner() {
   const [results, setResults] = useState({ ingest: null, query: null, gpt: null });
   const [activeConv, setActiveConv] = useState(null);
   const [convData, setConvData] = useState(null);
+  const [convRefreshKey, setConvRefreshKey] = useState(0);
 
   const fetchConversation = useCallback(async (convId) => {
     if (!convId || !token) { setConvData(null); return; }
@@ -483,18 +484,30 @@ function AppInner() {
 
   const handleGpt = async () => {
     if (!gptPrompt.trim()) return;
+    const question = gptPrompt.trim();
+    setGptPrompt('');
+    setResults(s => ({ ...s, gpt: null }));
     setLoading(s => ({ ...s, gpt: true }));
     try {
+      let convId = activeConv;
+      if (!convId && user && token) {
+        const headers = { ...authHeaders(token), 'Content-Type': 'application/json' };
+        const body = repoUrl ? { repo_url: repoUrl } : {};
+        const newConv = await requestJson(`${API_BASE}/conversations/`, { method: 'POST', headers, body: JSON.stringify(body) });
+        convId = newConv.id;
+        setActiveConv(convId);
+        setConvRefreshKey(k => k + 1);
+      }
       const params = new URLSearchParams({
-        prompt: gptPrompt.trim(),
+        prompt: question,
         top_k: String(Number(topK)),
         include_context: 'true',
       });
-      if (activeConv) params.set('conversation_id', String(activeConv));
+      if (convId) params.set('conversation_id', String(convId));
       const opts = { method: 'POST', headers: { ...authHeaders(token) } };
       const data = await requestJson(`${API_BASE}/gpt/query?${params.toString()}`, opts);
       setResults(s => ({ ...s, gpt: data }));
-      if (activeConv) fetchConversation(activeConv);
+      if (convId) fetchConversation(convId);
       if (data.confidence === 'high') toast('Answer ready (high confidence)', 'success');
       else if (data.confidence === 'medium') toast('Answer ready (medium confidence)', 'info');
     } catch (err) {
@@ -587,7 +600,7 @@ function AppInner() {
               </button>
             ))}
           </nav>
-          <ConversationsPanel activeConv={activeConv} onSelect={(id) => { setActiveConv(id); setTab('qa'); }} onNew={(id) => { setActiveConv(id); setTab('qa'); }} repoUrl={repoUrl} />
+          <ConversationsPanel key={convRefreshKey} activeConv={activeConv} onSelect={(id) => { setActiveConv(id); setTab('qa'); }} onNew={(id) => { setActiveConv(id); setTab('qa'); }} repoUrl={repoUrl} />
           <div className="sidebar-bottom">
             <div className="repo-info">
               <span className="repo-label">Repository</span>
