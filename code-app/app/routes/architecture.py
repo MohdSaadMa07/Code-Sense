@@ -296,7 +296,7 @@ def generate_architecture():
         config_files = {}
 
         try:
-            doc_ids = list(vs.index_to_docstore_id.values())
+            doc_ids = list(vs.docstore.keys()) if vs.docstore else list(vs.index_to_docstore_id.values())
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to read vectorstore index: {e}")
 
