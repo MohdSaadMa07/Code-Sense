@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: codesense-api
+    env_file: .env
+    volumes:
+      - codesense_data:/app/app/data
+    restart: always
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: codesense-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: always
+    networks:
+      - internal
+
+volumes:
+  codesense_data:
+  caddy_data:
+
+networks:
+  internal:
