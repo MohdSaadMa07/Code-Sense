@@ -14,3 +14,4 @@ onnxruntime
 tokenizers
 huggingface-hub
 numpy
+psycopg2-binary

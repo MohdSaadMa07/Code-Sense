@@ -231,7 +231,7 @@ function SearchResult({ data, loading }) {
   );
 }
 
-function GptResult({ data, loading }) {
+function GptResult({ data, loading, hideAnswer }) {
   if (loading) {
     return (
       <div className="qa-result">
@@ -249,19 +249,21 @@ function GptResult({ data, loading }) {
   const isLow = data.confidence === 'low';
   return (
     <div className="qa-result">
-      <div className={`answer-box ${isLow ? 'low' : ''}`}>
-        <div className="answer-top">
-          <span className="answer-lbl">Answer</span>
-          {data.confidence && (
-            <span className={`conf-badge ${data.confidence}`}>
-              {data.confidence} &middot; {(data.confidence_score * 100).toFixed(0)}%
-            </span>
-          )}
+      {!hideAnswer && (
+        <div className={`answer-box ${isLow ? 'low' : ''}`}>
+          <div className="answer-top">
+            <span className="answer-lbl">Answer</span>
+            {data.confidence && (
+              <span className={`conf-badge ${data.confidence}`}>
+                {data.confidence} &middot; {(data.confidence_score * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
+          <div className="answer-text">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.result || 'No answer'}</ReactMarkdown>
+          </div>
         </div>
-        <div className="answer-text">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{data.result || 'No answer'}</ReactMarkdown>
-        </div>
-      </div>
+      )}
       {Array.isArray(data.context) && data.context.length > 0 && (
         <div className="ctx-section">
           <p className="ctx-heading">Context ({data.context.length})</p>
@@ -715,7 +717,7 @@ function AppInner() {
                         ))}
                       </div>
                     )}
-                    {(results.gpt || loading.gpt) && <GptResult data={results.gpt} loading={loading.gpt} />}
+                    {(results.gpt || loading.gpt) && <GptResult data={results.gpt} loading={loading.gpt} hideAnswer={!!(convData?.messages?.length)} />}
                     {!convData?.messages?.length && !loading.gpt && !results.gpt && (
                       <div className="qa-empty-spacer" />
                     )}
