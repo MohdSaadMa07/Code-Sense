@@ -9,7 +9,7 @@ router = APIRouter(prefix="/github", tags=["GitHub"])
 
 class GitHubIngestRequest(BaseModel):
     repo_url: str
-    max_files: int = 500
+    max_files: int = 100
 
 @router.post("/ingest")
 def ingest_github_repo(request: GitHubIngestRequest):

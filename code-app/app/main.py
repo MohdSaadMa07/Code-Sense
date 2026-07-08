@@ -46,8 +46,14 @@ app.include_router(conversations_router)
 
 @app.on_event("startup")
 def _start_model_download():
-    from app.services.onnx_embeddings import _ensure_model
-    t = threading.Thread(target=_ensure_model, daemon=True)
+    from app.services.onnx_embeddings import _ensure_model, encode
+    def _warmup():
+        _ensure_model()
+        try:
+            encode(["warmup"], normalize_embeddings=True)
+        except Exception:
+            pass
+    t = threading.Thread(target=_warmup, daemon=True)
     t.start()
 
 FRONTEND_BUILD = Path(__file__).resolve().parents[2] / "frontend" / "build"

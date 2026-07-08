@@ -6,7 +6,7 @@ import onnxruntime as ort
 from pathlib import Path
 from tokenizers import Tokenizer
 
-CACHE_DIR = Path("/tmp/codesense_model")
+CACHE_DIR = Path(__file__).resolve().parent / "model_cache"
 ONNX_PATH = CACHE_DIR / "model.onnx"
 TOKENIZER_PATH = CACHE_DIR / "tokenizer.json"
 
