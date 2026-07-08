@@ -284,6 +284,23 @@ def clear_index():
     return {"cleared": True, "vectors_removed": count}
 
 
+@router.get("/debug")
+def debug_vectorstore():
+    from app.services.storage import get_vectorstore
+    vs = get_vectorstore()
+    if not vs:
+        return {"error": "no vectorstore"}
+    return {
+        "has_docstore": hasattr(vs, "docstore"),
+        "docstore_type": type(vs.docstore).__name__ if hasattr(vs, "docstore") else None,
+        "docstore_len": len(vs.docstore) if hasattr(vs, "docstore") else 0,
+        "has_index_map": hasattr(vs, "index_to_docstore_id"),
+        "index_len": len(vs.index_to_docstore_id) if hasattr(vs, "index_to_docstore_id") else 0,
+        "bm25_docs": vs.bm25.num_docs if hasattr(vs, "bm25") else 0,
+        "faiss_ntotal": vs.faiss.index.ntotal if hasattr(vs, 'faiss') and hasattr(vs.faiss, 'index') else 0,
+    }
+
+
 @router.post("/generate")
 def generate_architecture():
     try:
