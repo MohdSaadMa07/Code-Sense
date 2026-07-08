@@ -16,4 +16,5 @@ COPY --from=frontend /build/build /frontend/build
 
 ENV PYTHONPATH=/app
 EXPOSE 7860
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}
+RUN python -c "from app.main import app; print('Import OK')"
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860} --log-level debug"]
