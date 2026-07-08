@@ -68,12 +68,7 @@ def _download_file(item: dict) -> dict | None:
         resp = requests.get(item["download_url"], headers=get_headers(), timeout=15)
         if resp.status_code != 200:
             return None
-        raw = resp.content
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            text = raw.decode("utf-8", errors="replace")
-        return {"path": item["path"], "content": text}
+        return {"path": item["path"], "content": resp.text}
     except requests.exceptions.RequestException:
         return None
 
@@ -83,7 +78,7 @@ def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 5
     _gather_file_items(owner, repo, path, max_files, file_items)
 
     collected = []
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         futs = {pool.submit(_download_file, item): item for item in file_items}
         for fut in as_completed(futs):
             result = fut.result()

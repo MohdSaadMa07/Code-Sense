@@ -13,9 +13,11 @@ from app.routes.conversations import router as conversations_router
 from app.database import init_db
 from app.models import User, Conversation, Message
 
+import gc
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
+from fastapi.responses import JSONResponse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 APP_DIR = Path(__file__).resolve().parent
@@ -44,15 +46,34 @@ app.include_router(architecture_router)
 app.include_router(auth_router)
 app.include_router(conversations_router)
 
+_model_ready = threading.Event()
+
+
+def require_model_ready():
+    if not _model_ready.is_set():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Server still loading model. Try again in a moment.")
+
+
+@app.get("/health")
+def health():
+    if _model_ready.is_set():
+        return {"status": "ready"}
+    return JSONResponse(status_code=503, content={"status": "loading"})
+
+
 @app.on_event("startup")
 def _start_model_download():
     from app.services.onnx_embeddings import _ensure_model, encode
     def _warmup():
-        _ensure_model()
         try:
+            _ensure_model()
             encode(["warmup"], normalize_embeddings=True)
         except Exception:
             pass
+        finally:
+            _model_ready.set()
+            gc.collect()
     t = threading.Thread(target=_warmup, daemon=True)
     t.start()
 

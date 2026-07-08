@@ -88,7 +88,7 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-BATCH_SIZE = 50
+BATCH_SIZE = 10
 
 
 def store_documents(documents: list[Document], chunk_size=2000, chunk_overlap=50):
@@ -111,3 +111,26 @@ def store_documents(documents: list[Document], chunk_size=2000, chunk_overlap=50
     del ingestible_chunks
     import gc; gc.collect()
     return total_ingested
+
+
+def store_single_batch(documents: list[Document], save: bool = True, chunk_size=2000, chunk_overlap=50):
+    if not documents:
+        return 0
+    vs = get_vectorstore()
+    all_chunks = chunk_documents_with_ast(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    ingestible_chunks = _filter_chunks(all_chunks)
+    del all_chunks, documents
+    import gc; gc.collect()
+    if ingestible_chunks:
+        for i in range(0, len(ingestible_chunks), BATCH_SIZE):
+            batch = ingestible_chunks[i:i + BATCH_SIZE]
+            vs.add_documents(batch)
+            import gc; gc.collect()
+        total = len(ingestible_chunks)
+        del ingestible_chunks
+        if save:
+            vs.save_local(VECTORSTORE_PATH)
+            print(f"[SAVE] Saved Hybrid index ({vs.num_docs} docs) to {VECTORSTORE_PATH}")
+        import gc; gc.collect()
+        return total
+    return 0
