@@ -1,7 +1,6 @@
 .git
 .gitignore
 .env
-*.md
 node_modules
 frontend/node_modules
 __pycache__
@@ -11,3 +10,4 @@ vectorstore
 code-app/app/data/codesense.db
 code-app/app/services/model_cache
 scripts
+start.sh
