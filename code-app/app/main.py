@@ -14,6 +14,7 @@ from app.database import init_db
 from app.models import User, Conversation, Message
 
 import gc
+import os
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
@@ -57,7 +58,12 @@ def health():
 
 
 @app.on_event("startup")
-def _start_model_download():
+def _on_startup():
+    if os.getenv("JINA_API_KEY"):
+        _model_ready.set()
+        gc.collect()
+        return
+
     from app.services.onnx_embeddings import _ensure_model
     def _warmup():
         try:

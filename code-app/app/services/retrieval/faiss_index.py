@@ -4,7 +4,11 @@ import faiss
 import numpy as np
 
 from langchain_core.documents import Document
-from app.services.onnx_embeddings import encode as get_embeddings
+
+if os.getenv("JINA_API_KEY"):
+    from app.services.remote_embeddings import encode as get_embeddings
+else:
+    from app.services.onnx_embeddings import encode as get_embeddings
 
 class FAISSRetriever:
     def __init__(self, dimension=384, docstore: dict | None = None):
