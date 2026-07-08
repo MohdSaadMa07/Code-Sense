@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.github_loader import parse_github_repo, collect_repo_files
 from app.services.storage import store_documents, store_single_batch
+from app.services.onnx_embeddings import release_model
 from langchain_core.documents import Document
 
 router = APIRouter(prefix="/github", tags=["GitHub"])
@@ -55,6 +56,7 @@ def ingest_github_repo(request: GitHubIngestRequest):
                 del docs, batch
                 gc.collect()
 
+        release_model()
         del files
         gc.collect()
 

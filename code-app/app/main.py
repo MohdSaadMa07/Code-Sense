@@ -49,12 +49,6 @@ app.include_router(conversations_router)
 _model_ready = threading.Event()
 
 
-def require_model_ready():
-    if not _model_ready.is_set():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=503, detail="Server still loading model. Try again in a moment.")
-
-
 @app.get("/health")
 def health():
     if _model_ready.is_set():
@@ -64,11 +58,10 @@ def health():
 
 @app.on_event("startup")
 def _start_model_download():
-    from app.services.onnx_embeddings import _ensure_model, encode
+    from app.services.onnx_embeddings import _ensure_model
     def _warmup():
         try:
             _ensure_model()
-            encode(["warmup"], normalize_embeddings=True)
         except Exception:
             pass
         finally:

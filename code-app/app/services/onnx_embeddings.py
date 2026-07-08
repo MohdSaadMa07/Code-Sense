@@ -1,3 +1,4 @@
+import gc
 import os
 import threading
 import requests
@@ -12,21 +13,10 @@ TOKENIZER_PATH = CACHE_DIR / "tokenizer.json"
 
 _session = None
 _tokenizer = None
+_session_lock = threading.Lock()
 _download_lock = threading.Lock()
 _download_done = threading.Event()
 _PAD_TOKEN_ID = 0
-
-def _make_session_opts():
-    opts = ort.SessionOptions()
-    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-    opts.intra_op_num_threads = 1
-    opts.inter_op_num_threads = 1
-    opts.enable_cpu_mem_arena = False
-    opts.enable_mem_pattern = False
-    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-    opts.enable_profiling = False
-    return opts
-
 
 _FILES = [
     ("onnx/model.onnx", "model.onnx"),
@@ -36,6 +26,18 @@ _FILES = [
     ("tokenizer_config.json", "tokenizer_config.json"),
     ("vocab.txt", "vocab.txt"),
 ]
+
+
+def _make_session_opts():
+    opts = ort.SessionOptions()
+    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+    opts.intra_op_num_threads = 1
+    opts.inter_op_num_threads = 1
+    opts.enable_cpu_mem_arena = False
+    opts.enable_mem_pattern = False
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    opts.enable_profiling = False
+    return opts
 
 
 def _ensure_model():
@@ -61,23 +63,37 @@ def _ensure_model():
                     f.write(chunk)
             print(f"[ONNX] Saved {dst_name}")
             del resp
+            gc.collect()
         _download_done.set()
-        import gc; gc.collect()
+        gc.collect()
 
 
-def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
+def _load_session():
     global _session, _tokenizer
-
-    _ensure_model()
-
-    if _session is None:
+    if _session is not None:
+        return
+    with _session_lock:
+        if _session is not None:
+            return
+        _ensure_model()
         _session = ort.InferenceSession(
             str(ONNX_PATH),
             providers=["CPUExecutionProvider"],
             sess_options=_make_session_opts(),
         )
-    if _tokenizer is None:
         _tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
+
+
+def release_model():
+    global _session, _tokenizer
+    with _session_lock:
+        _session = None
+        _tokenizer = None
+    gc.collect()
+
+
+def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
+    _load_session()
 
     encodings = [_tokenizer.encode(t) for t in texts]
     max_len = max(len(e.ids) for e in encodings) if encodings else 0
@@ -93,14 +109,21 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
         input_ids[i, :length] = e.ids[:length]
         attention_mask[i, :length] = 1
 
+    del encodings
+    gc.collect()
+
     ort_inputs = {
         "input_ids": input_ids,
         "attention_mask": attention_mask,
         "token_type_ids": token_type_ids,
     }
     last_hidden = _session.run(None, ort_inputs)[0]
+    del ort_inputs, input_ids, attention_mask, token_type_ids
+    gc.collect()
 
     cls_embeddings = last_hidden[:, 0, :]
+    del last_hidden
+    gc.collect()
 
     if normalize_embeddings:
         norms = np.linalg.norm(cls_embeddings, axis=1, keepdims=True)
