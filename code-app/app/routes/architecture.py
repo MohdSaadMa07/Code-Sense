@@ -203,7 +203,7 @@ def _build_file_tree_architecture(doc_ids, vs, stack):
     seen_paths = {}
     for doc_id in doc_ids:
         try:
-            doc = vs.docstore.search(doc_id)
+            doc = vs.docstore.get(doc_id)
         except Exception:
             continue
         if not doc or not hasattr(doc, "metadata"):
@@ -296,13 +296,19 @@ def generate_architecture():
         config_files = {}
 
         try:
+            docstore_size = len(vs.docstore) if vs.docstore else 0
+            faiss_size = len(vs.index_to_docstore_id) if hasattr(vs, 'index_to_docstore_id') else 0
+            bm25_size = len(vs.bm25.index_to_docstore_id) if hasattr(vs, 'bm25') and hasattr(vs.bm25, 'index_to_docstore_id') else 0
+            print(f"[ARCH] docstore={docstore_size} faiss_idx={faiss_size} bm25_idx={bm25_size}")
+
             doc_ids = list(vs.docstore.keys()) if vs.docstore else list(vs.index_to_docstore_id.values())
+            print(f"[ARCH] doc_ids count={len(doc_ids)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to read vectorstore index: {e}")
 
         for doc_id in doc_ids:
             try:
-                doc = vs.docstore.search(doc_id)
+                doc = vs.docstore.get(doc_id)
             except Exception:
                 continue
             if not doc or not hasattr(doc, "metadata"):
@@ -364,7 +370,7 @@ def generate_architecture():
 
         for doc_id in doc_ids:
             try:
-                doc = vs.docstore.search(doc_id)
+                doc = vs.docstore.get(doc_id)
             except Exception:
                 continue
             if not doc or not hasattr(doc, "metadata"):

@@ -14,7 +14,7 @@ def get_symbols():
     files: dict[str, list[dict]] = {}
 
     for doc_id in vs.index_to_docstore_id.values():
-        doc = vs.docstore.search(doc_id)
+        doc = vs.docstore.get(doc_id)
         if not doc or not hasattr(doc, "metadata"):
             continue
 
