@@ -8,7 +8,7 @@ from langchain_core.documents import Document
 
 router = APIRouter(prefix="/github", tags=["GitHub"])
 
-INGEST_MICRO_BATCH = 3
+INGEST_MICRO_BATCH = 1
 
 class GitHubIngestRequest(BaseModel):
     repo_url: str

@@ -15,6 +15,7 @@ GITHUB_API_BASE = "https://api.github.com"
 
 ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".md", ".txt", ".json", ".yml", ".yaml", ".html", ".java", ".go", ".rb", ".php", ".sql", ".sh", ".env"}
 IGNORED_FOLDERS = {".github", "tests", "__tests__", "static/vendors", "static/vendor"}
+MAX_FILE_SIZE = 512 * 1024
 
 
 def get_headers():
@@ -64,6 +65,8 @@ def fetch_repo_contents(owner, repo, path=""):
 
 
 def _download_file(item: dict) -> dict | None:
+    if item.get("size", 0) > MAX_FILE_SIZE:
+        return None
     try:
         resp = requests.get(item["download_url"], headers=get_headers(), timeout=15)
         if resp.status_code != 200:
@@ -95,7 +98,8 @@ def _gather_file_items(owner: str, repo: str, path: str, max_files: int, out: li
         if item["type"] == "dir":
             _gather_file_items(owner, repo, item["path"], max_files, out)
         elif item["type"] == "file" and is_allowed_file(item["path"]):
-            out.append(item)
+            if item.get("size", 0) <= MAX_FILE_SIZE:
+                out.append(item)
 
 
 def deduplicate_documents(documents: list[Document]) -> list[Document]:

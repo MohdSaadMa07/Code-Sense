@@ -3,9 +3,7 @@ import os
 import threading
 import requests
 import numpy as np
-import onnxruntime as ort
 from pathlib import Path
-from tokenizers import Tokenizer
 
 CACHE_DIR = Path(__file__).resolve().parent / "model_cache"
 ONNX_PATH = CACHE_DIR / "model.onnx"
@@ -29,6 +27,7 @@ _FILES = [
 
 
 def _make_session_opts():
+    import onnxruntime as ort
     opts = ort.SessionOptions()
     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
     opts.intra_op_num_threads = 1
@@ -75,6 +74,8 @@ def _load_session():
     with _session_lock:
         if _session is not None:
             return
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
         _ensure_model()
         _session = ort.InferenceSession(
             str(ONNX_PATH),
