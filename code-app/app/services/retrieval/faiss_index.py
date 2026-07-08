@@ -6,13 +6,13 @@ import numpy as np
 from langchain_core.documents import Document
 
 if os.getenv("JINA_API_KEY"):
-    from app.services.remote_embeddings import encode as get_embeddings
+    from app.services.remote_embeddings import encode as get_embeddings, EMBEDDING_DIM
 else:
     from app.services.onnx_embeddings import encode as get_embeddings
+    EMBEDDING_DIM = 384
 
 class FAISSRetriever:
-    def __init__(self, dimension=384, docstore: dict | None = None):
-        # BAAI/bge-small-en-v1.5 has 384 dimensions
+    def __init__(self, dimension=EMBEDDING_DIM, docstore: dict | None = None):
         self.dimension = dimension
         self.index = faiss.IndexFlatIP(self.dimension)
         self.faiss_id_to_doc_id: dict[int, str] = {}

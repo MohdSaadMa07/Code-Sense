@@ -5,6 +5,7 @@ import requests
 JINA_API_KEY = os.getenv("JINA_API_KEY")
 JINA_URL = "https://api.jina.ai/v1/embeddings"
 _MODEL = "jina-embeddings-v3"
+EMBEDDING_DIM = 1024
 
 
 def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
