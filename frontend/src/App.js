@@ -279,7 +279,7 @@ function GptResult({ data, loading, hideAnswer }) {
   );
 }
 
-function ArchitecturePanel() {
+function ArchitecturePanel({ repoId }) {
   const toast = useToast();
   const [diagram, setDiagram] = useState(null);
   const [info, setInfo] = useState(null);
@@ -328,7 +328,12 @@ function ArchitecturePanel() {
     setDiagram(null);
     setInfo(null);
     try {
-      const res = await requestJson(`${API_BASE}/architecture/generate`, { method: 'POST' });
+      if (!repoId) { toast('Connect a repository first', 'error'); setLoading(false); return; }
+      const res = await requestJson(`${API_BASE}/architecture/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repository_id: repoId }),
+      });
       setDiagram(res.mermaid);
       setInfo(res);
       toast(`Architecture generated (${res.modules_found ?? 0} modules)`, 'success');
@@ -420,6 +425,13 @@ function AppInner() {
   const [page, setPage] = useState('home');
   const [tab, setTab] = useState('ingest');
   const [repoUrl, setRepoUrl] = useState('');
+  const repoId = useMemo(() => {
+    if (!repoUrl.trim()) return '';
+    try {
+      const u = new URL(repoUrl.trim());
+      return u.pathname.replace(/^\//, '').replace(/\/$/, '');
+    } catch { return ''; }
+  }, [repoUrl]);
   const [maxFiles, setMaxFiles] = useState(500);
   const [query, setQuery] = useState('');
   const [gptPrompt, setGptPrompt] = useState('');
@@ -468,10 +480,11 @@ function AppInner() {
     if (!query.trim()) return;
     setLoading(s => ({ ...s, query: true }));
     try {
+      if (!repoId) { toast('Connect a repository first', 'error'); setLoading(s => ({ ...s, query: false })); return; }
       const data = await requestJson(`${API_BASE}/query/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query.trim(), top_k: Number(topK) }),
+        body: JSON.stringify({ repository_id: repoId, query: query.trim(), top_k: Number(topK) }),
       });
       setResults(s => ({ ...s, query: data }));
       if (data.results?.length) toast(`Found ${data.results.length} results`, 'success');
@@ -501,6 +514,7 @@ function AppInner() {
         setConvRefreshKey(k => k + 1);
       }
       const params = new URLSearchParams({
+        repository_id: repoId,
         prompt: question,
         top_k: String(Number(topK)),
         include_context: 'true',
@@ -638,7 +652,12 @@ function AppInner() {
                 {results.ingest && !results.ingest.error && (
                   <button className="ghost-btn small" onClick={async () => {
                     try {
-                      await requestJson(`${API_BASE}/architecture/clear`, { method: 'POST' });
+                      if (!repoId) return;
+                      await requestJson(`${API_BASE}/architecture/clear`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repository_id: repoId }),
+                      });
                       setResults(s => ({ ...s, ingest: null }));
                     } catch (e) {
                       setResults(s => ({ ...s, ingest: { error: e.message } }));
@@ -657,7 +676,7 @@ function AppInner() {
                 <h2>Codebase Architecture</h2>
                 <p>Interactive visualization of modules, layers, and dependencies.</p>
               </div>
-              <ArchitecturePanel />
+              <ArchitecturePanel repoId={repoId} />
             </section>
           )}
 
