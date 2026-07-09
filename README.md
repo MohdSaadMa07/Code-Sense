@@ -26,10 +26,10 @@
 
 Connect any GitHub repository and instantly get:
 
-- 🔍 **Semantic search** across your entire codebase
-- 🏗️ **Automatic architecture diagrams** generated from code structure
-- 💬 **AI-powered codebase Q&A** grounded in your actual source
-- 🌳 **Symbol-level code exploration** across 20+ languages
+- **Semantic search** across your entire codebase
+- **Automatic architecture diagrams** generated from code structure
+- **AI-powered codebase Q&A** grounded in your actual source
+- **Symbol-level code exploration** across 20+ languages
 
 Built with FastAPI, React, FAISS, BM25, ONNX Runtime, and Groq RAG.
 
@@ -98,12 +98,12 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 | Feature | Description |
 |---|---|
-| 🔍 **Semantic Search** | Hybrid FAISS + BM25 retrieval with Reciprocal Rank Fusion, re-ranked by parse quality and query intent |
-| 🏗️ **Architecture Generation** | Scans route definitions, classifies endpoints into 22 functional domains, detects layers, builds dependency graphs, renders Mermaid.js diagrams |
-| 💬 **AI Q&A** | Retrieval-Augmented Generation using Groq LLM — retrieved code chunks are injected as context for grounded answers |
-| 🌳 **Multi-Language Parsing** | Tree-sitter AST extraction for 20+ languages; Python files also use built-in `ast` for symbol boundaries |
-| ⚡ **Smart Indexing** | Deterministic chunk IDs (SHA1), noise filtering, parse quality metadata, per-repo thread-safe ingestion |
-| 🔒 **Thread-Safe Repository Indexing** | Per-repository locking, atomic persistence via temp-dir rename, LRU caching (max 5 repos) to prevent concurrent conflicts |
+| **Semantic Search** | Hybrid FAISS + BM25 retrieval with Reciprocal Rank Fusion, re-ranked by parse quality and query intent |
+| **Architecture Generation** | Scans route definitions, classifies endpoints into 22 functional domains, detects layers, builds dependency graphs, renders Mermaid.js diagrams |
+| **AI Q&A** | Retrieval-Augmented Generation using Groq LLM — retrieved code chunks are injected as context for grounded answers |
+| **Multi-Language Parsing** | Tree-sitter AST extraction for 20+ languages; Python files also use built-in `ast` for symbol boundaries |
+| **Smart Indexing** | Deterministic chunk IDs (SHA1), noise filtering, parse quality metadata, per-repo thread-safe ingestion |
+| **Thread-Safe Repository Indexing** | Per-repository locking, atomic persistence via temp-dir rename, LRU caching (max 5 repos) to prevent concurrent conflicts |
 
 ## Tech Stack
 
