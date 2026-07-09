@@ -13,8 +13,9 @@ from langchain_core.documents import Document
 
 GITHUB_API_BASE = "https://api.github.com"
 
-ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".md", ".txt", ".json", ".yml", ".yaml", ".html", ".java", ".go", ".rb", ".php", ".sql", ".sh", ".env"}
-IGNORED_FOLDERS = {".github", "tests", "__tests__", "static/vendors", "static/vendor"}
+ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".md", ".txt", ".json", ".yml", ".yaml", ".html", ".java", ".go", ".rb", ".php", ".sql", ".sh"}
+IGNORED_FOLDERS = {"node_modules", ".git", "__pycache__", "venv", ".venv", "env", "dist", "build", "coverage", ".next", ".nuxt", ".github", "tests", "__tests__", "static/vendors", "static/vendor"}
+IGNORED_FILE_PATTERNS = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Gemfile.lock", "poetry.lock", "*.min.js", "*.min.css"}
 MAX_FILE_SIZE = 512 * 1024
 
 
@@ -40,7 +41,13 @@ def parse_github_repo(url: str) -> tuple[str, str]:
 def is_allowed_file(path: str) -> bool:
     normalized_path = path.replace("\\", "/").lower()
     for folder in IGNORED_FOLDERS:
-        if normalized_path.startswith(folder + "/"):
+        if normalized_path.startswith(folder + "/") or normalized_path == folder:
+            return False
+    for pattern in IGNORED_FILE_PATTERNS:
+        if pattern.startswith("*"):
+            if normalized_path.endswith(pattern[1:]):
+                return False
+        elif pattern in normalized_path:
             return False
     parts = normalized_path.split("/")
     if any(part.startswith(".") for part in parts[:-1]):

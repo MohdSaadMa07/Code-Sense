@@ -74,10 +74,10 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-BATCH_SIZE = 10
+BATCH_SIZE = 50
 
 
-def store_documents(repo_id: str, documents: list[Document], chunk_size=2000, chunk_overlap=50):
+def store_documents(repo_id: str, documents: list[Document], chunk_size=3000, chunk_overlap=50):
     if not documents:
         raise ValueError("No documents provided")
     all_chunks = chunk_documents_with_ast(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -96,7 +96,7 @@ def store_documents(repo_id: str, documents: list[Document], chunk_size=2000, ch
     return total_ingested
 
 
-def store_single_batch(repo_id: str, documents: list[Document], save: bool = True, chunk_size=2000, chunk_overlap=50):
+def store_single_batch(repo_id: str, documents: list[Document], save: bool = True, chunk_size=3000, chunk_overlap=50):
     if not documents:
         return 0
     all_chunks = chunk_documents_with_ast(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
