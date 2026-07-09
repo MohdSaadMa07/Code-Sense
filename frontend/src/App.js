@@ -290,14 +290,14 @@ function ArchitecturePanel({ repoId }) {
 
   useEffect(() => {
     if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', htmlLabels: false, flowchart: { useMaxWidth: false, htmlLabels: false, nodeSpacing: 80, rankSpacing: 100 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '18px' } });
+      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', flowchart: { useMaxWidth: true, htmlLabels: true, nodeSpacing: 40, rankSpacing: 60 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '14px' } });
       setMermaidLoaded(true);
       return;
     }
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
     script.onload = () => {
-      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', htmlLabels: false, flowchart: { useMaxWidth: false, htmlLabels: false, nodeSpacing: 80, rankSpacing: 100 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '18px' } });
+      window.mermaid.initialize({ startOnLoad: false, theme: 'dark', flowchart: { useMaxWidth: true, htmlLabels: true, nodeSpacing: 40, rankSpacing: 60 }, themeVariables: { primaryColor: '#1e1e3a', primaryTextColor: '#c4c4d8', primaryBorderColor: '#3a3a5a', lineColor: '#6366f1', secondaryColor: '#12122a', tertiaryColor: '#0a0a18', fontSize: '14px' } });
       setMermaidLoaded(true);
     };
     document.head.appendChild(script);

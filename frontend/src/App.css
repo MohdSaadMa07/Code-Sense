@@ -1041,21 +1041,24 @@ label {
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  padding: 32px;
-  overflow-x: auto;
-  overflow-y: auto;
+  padding: 16px;
+  overflow: auto;
   max-width: 100%;
-  min-height: 400px;
+  max-height: 70vh;
+  min-height: 300px;
   transition: all 0.3s;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
 .mermaid-container:hover { border-color: rgba(255,255,255,0.15); }
 .mermaid-container .mermaid {
   display: flex;
-  justify-content: flex-start;
-  min-width: max-content;
+  justify-content: center;
+  width: 100%;
 }
-.mermaid-container svg { max-width: none; height: auto; }
+.mermaid-container svg { max-width: 100%; height: auto; }
 .mermaid-container text {
   font-size: 16px !important;
   font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace !important;
