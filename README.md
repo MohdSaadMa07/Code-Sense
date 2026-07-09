@@ -58,13 +58,13 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ![Dashboard](assets/dashboard.png)
 
-### Architecture Diagram
-
-![Architecture](assets/architecture%20page.png)
-
 ### Deep Semantic Search
 
 ![Deep Search](assets/deepsemanticsearch.png)
+
+### Architecture Diagram
+
+![Architecture](assets/architecture%20page.png)
 
 ### AI Codebase Q&A
 
