@@ -54,11 +54,23 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ## Screenshots
 
-### Repository Analysis
+### Repository Ingestion
 
 ![Dashboard](assets/dashboard.png)
 
-### AI Codebase Chat
+### Architecture Diagram
+
+![Architecture](assets/architecture%20page.png)
+
+### Deep Semantic Search
+
+![Deep Search](assets/deepsemanticsearch.png)
+
+### AI Codebase Q&A
+
+![Q&A](assets/qandasection.png)
+
+### Chat Conversation
 
 ![Chat](assets/chat.png)
 
