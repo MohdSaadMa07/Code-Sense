@@ -233,20 +233,6 @@ code-app/
 └── README.md
 ```
 
-## Roadmap
-
-- [x] Hybrid semantic search (FAISS + BM25 + RRF)
-- [x] Multi-language code parsing (20+ languages)
-- [x] AI codebase Q&A (RAG with Groq)
-- [x] Automatic architecture diagram generation
-- [x] Google OAuth + JWT authentication
-- [x] Conversation history persistence
-- [ ] Incremental repository updates (re-index without full re-ingest)
-- [ ] GitHub App integration (auto-index on push)
-- [ ] Multi-user workspace support
-- [ ] VS Code extension
-- [ ] Self-hosted LLM support (Ollama)
-
 ## Setup
 
 ### Environment Variables
