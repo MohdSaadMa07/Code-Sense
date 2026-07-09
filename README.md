@@ -54,9 +54,6 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ## Screenshots
 
-> **Note:** Add screenshots to the `assets/` directory and uncomment below.
-
-<!--
 ### Repository Analysis
 
 ![Dashboard](assets/dashboard.png)
@@ -68,7 +65,6 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 ### AI Codebase Chat
 
 ![Chat](assets/chat.png)
--->
 
 ## Tech Stack
 
