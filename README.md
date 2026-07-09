@@ -58,10 +58,6 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ![Dashboard](assets/dashboard.png)
 
-### Architecture Generation
-
-![Architecture](assets/architecture.png)
-
 ### AI Codebase Chat
 
 ![Chat](assets/chat.png)
