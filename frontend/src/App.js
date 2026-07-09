@@ -554,7 +554,7 @@ function AppInner() {
           <section className="hero">
             <div className="hero-text">
               <span className="pill">AI-Powered Intelligence</span>
-              <h1>Master your codebase<br/>with superhuman speed.</h1>
+              <h1>Explore your codebase<br/>with semantic search.</h1>
               <p>Connect any repository to unlock deep semantic search, architectural mapping, and AI-driven Q&A grounded directly in your code.</p>
               <button className="primary-btn" onClick={() => setPage('app')}>
                 Get Started
