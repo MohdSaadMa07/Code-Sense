@@ -115,7 +115,7 @@ QUESTION:
     client = get_client()
     response = client.chat.completions.create(
         model="openai/gpt-oss-120b",
-        max_tokens=600,
+        max_tokens=2048,
         temperature=0.0,
         messages=[{"role": "user", "content": prompt}],
     )
