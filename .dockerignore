@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+node_modules
+frontend/node_modules
+__pycache__
+*.pyc
+.venv
+vectorstore
+code-app/app/data/codesense.db
+code-app/app/services/model_cache
+scripts
+start.sh
