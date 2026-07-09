@@ -690,7 +690,7 @@ function AppInner() {
               </button>
             ))}
           </nav>
-          <ConversationsPanel key={convRefreshKey} activeConv={activeConv} onSelect={(id) => { setActiveConv(id); setTab('qa'); }} onNew={(id) => { setActiveConv(id); setTab('qa'); }} repoUrl={repoUrl} />
+          <ConversationsPanel key={convRefreshKey} activeConv={activeConv} onSelect={(id) => { setActiveConv(id); setConvData(null); setTab('qa'); }} onNew={(id) => { setActiveConv(id); setConvData(null); setTab('qa'); }} repoUrl={repoUrl} />
           <div className="sidebar-bottom">
             <div className="repo-info">
               <span className="repo-label">Repository</span>

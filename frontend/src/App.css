@@ -204,7 +204,7 @@ label {
 .field-row { display: flex; gap: 12px; align-items: end; }
 
 /* ---- Home Page ---- */
-.home { min-height: 100vh; display: flex; flex-direction: column; }
+.home { }
 
 .topbar {
   display: flex;
@@ -220,10 +220,9 @@ label {
   display: flex;
   align-items: center;
   gap: 80px;
-  padding: 100px 48px 60px;
+  padding: 40px 48px 60px;
   max-width: 1200px;
   margin: 0 auto;
-  flex: 1;
 }
 .hero-text { flex: 1.2; animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .hero-visual { flex: 0.8; display: flex; justify-content: center; animation: zoomInFade 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -283,7 +282,7 @@ label {
 }
 
 .hero-text h1 {
-  font-size: 4rem;
+  font-size: 3.5rem;
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.04em;
