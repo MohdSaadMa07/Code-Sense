@@ -285,8 +285,13 @@ function ArchitecturePanel({ repoId }) {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [zoom, setZoom] = useState(1);
   const containerRef = useRef(null);
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
+
+  const ZOOM_STEP = 0.25;
+  const ZOOM_MIN = 0.25;
+  const ZOOM_MAX = 4;
 
   useEffect(() => {
     if (window.mermaid) {
@@ -305,6 +310,7 @@ function ArchitecturePanel({ repoId }) {
 
   useEffect(() => {
     if (!diagram || !mermaidLoaded || !containerRef.current) return;
+    setZoom(1);
     const h = containerRef.current;
     h.innerHTML = '';
     const pre = document.createElement('div');
@@ -344,6 +350,27 @@ function ArchitecturePanel({ repoId }) {
       setLoading(false);
     }
   }, []);
+
+  const zoomIn = () => setZoom(z => Math.min(z + ZOOM_STEP, ZOOM_MAX));
+  const zoomOut = () => setZoom(z => Math.max(z - ZOOM_STEP, ZOOM_MIN));
+  const zoomReset = () => setZoom(1);
+
+  const downloadSvg = () => {
+    const svg = containerRef.current?.querySelector('svg');
+    if (!svg) return;
+    const clone = svg.cloneNode(true);
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(clone);
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'architecture.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const hasDiagram = !!diagram;
 
   return (
     <div>
@@ -400,7 +427,17 @@ function ArchitecturePanel({ repoId }) {
         </div>
       )}
 
-      <div ref={containerRef} className="mermaid-container" />
+      {hasDiagram && (
+        <div className="zoom-controls">
+          <span className="zoom-label">{Math.round(zoom * 100)}%</span>
+          <button className="ghost-btn small" onClick={zoomOut} title="Zoom out">−</button>
+          <button className="ghost-btn small" onClick={zoomReset} title="Reset zoom">⟲</button>
+          <button className="ghost-btn small" onClick={zoomIn} title="Zoom in">+</button>
+          <button className="ghost-btn small" onClick={downloadSvg} title="Download SVG">↓</button>
+        </div>
+      )}
+
+      <div ref={containerRef} className="mermaid-container" style={{ '--zoom': zoom }} />
     </div>
   );
 }
