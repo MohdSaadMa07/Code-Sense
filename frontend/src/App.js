@@ -548,18 +548,21 @@ function AppInner() {
             </span>CodeSense</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <AuthButton />
-              <button className="ghost-btn" onClick={() => setPage('app')}>Launch</button>
+              <button className="ghost-btn" onClick={() => setPage('app')}>Launch App</button>
             </div>
           </nav>
+
           <section className="hero">
             <div className="hero-text">
               <span className="pill">AI-Powered Intelligence</span>
               <h1>Explore your codebase<br/>with semantic search.</h1>
-              <p>Connect any repository to unlock deep semantic search, architectural mapping, and AI-driven Q&A grounded directly in your code.</p>
-              <button className="primary-btn" onClick={() => setPage('app')}>
-                Get Started
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </button>
+              <p>Connect any GitHub repository to unlock deep semantic search, architectural mapping, and AI-driven Q&amp;A grounded in your actual code.</p>
+              <div className="hero-actions">
+                <button className="primary-btn" onClick={() => setPage('app')}>
+                  Get Started
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+              </div>
             </div>
             <div className="hero-visual">
               <div className="hero-graphic">
@@ -570,18 +573,89 @@ function AppInner() {
               </div>
             </div>
           </section>
-          <section className="steps">
-            {[
-              { t: 'Connect', d: 'Securely sync your repository and let our AI build an intelligent neural index.' },
-              { t: 'Deep Search', d: 'Discover code through semantic meaning and intent, instantly finding what matters.' },
-              { t: 'Ask Codebase', d: 'Have conversational interactions with your codebase to solve complex architectural questions.' },
-            ].map((s, i) => (
-              <div className="step-card" key={s.t}>
-                <span className="step-num">0{i + 1}</span>
-                <h3>{s.t}</h3>
-                <p>{s.d}</p>
+
+          <section className="features">
+            <div className="section-header">
+              <span className="pill">Capabilities</span>
+              <h2>Everything you need to navigate code</h2>
+              <p>CodeSense combines multiple AI-powered engines to give you complete understanding of any codebase.</p>
+            </div>
+            <div className="feature-grid">
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <h3>Semantic Search</h3>
+                <p>Find code by meaning and intent, not just keywords. Search your entire repository in milliseconds with FAISS vector search and BM25 retrieval.</p>
               </div>
-            ))}
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <h3>Architecture Generation</h3>
+                <p>Automatically visualise your codebase structure with interactive dependency graphs and flow diagrams powered by tree-sitter parsing.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </div>
+                <h3>AI Q&A</h3>
+                <p>Ask questions about your codebase in natural language and get precise answers grounded in your actual source code.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                </div>
+                <h3>Multi-Language Parsing</h3>
+                <p>Deep tree-sitter parsing across Python, JavaScript, TypeScript, Rust, Go, and more to understand code structure and relationships.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                </div>
+                <h3>Smart Indexing</h3>
+                <p>Automatic chunking, embedding, and indexing of your repositories for instant semantic retrieval across all connected projects.</p>
+              </div>
+              <div className="feature-card">
+                <div className="feature-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </div>
+                <h3>Multi-Repository</h3>
+                <p>Seamlessly switch between multiple codebases with repository-scoped indexing and retrieval for each project.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="steps-section">
+            <div className="section-header">
+              <span className="pill">How It Works</span>
+              <h2>From repo to insights in minutes</h2>
+              <p>Three simple steps to unlock the full intelligence of your codebase.</p>
+            </div>
+            <div className="steps">
+              {[
+                { num: '01', t: 'Connect', d: 'Securely sync any GitHub repository. CodeSense automatically analyses language composition and prepares for intelligent indexing.' },
+                { num: '02', t: 'Index', d: 'Our engine chunks your code, generates embeddings, and builds a FAISS vector index with BM25 for hybrid retrieval.' },
+                { num: '03', t: 'Discover', d: 'Search semantically, ask questions, and generate architecture diagrams — all grounded in your actual source.' },
+              ].map((s, i) => (
+                <div className="step-card" key={s.t}>
+                  <span className="step-num">{s.num}</span>
+                  <h3>{s.t}</h3>
+                  <p>{s.d}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="cta">
+            <div className="cta-content">
+              <h2>Ready to explore your code?</h2>
+              <p>Connect your first repository and discover the power of AI-driven code intelligence.</p>
+              <button className="primary-btn" onClick={() => setPage('app')}>
+                Launch CodeSense
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </button>
+            </div>
           </section>
         </main>
       </div>

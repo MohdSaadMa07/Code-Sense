@@ -74,7 +74,7 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-BATCH_SIZE = 50
+BATCH_SIZE = 10
 
 
 def store_documents(repo_id: str, documents: list[Document], chunk_size=3000, chunk_overlap=50):
