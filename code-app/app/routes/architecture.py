@@ -2,7 +2,12 @@ import os
 import re
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from app.services.retrieval.manager import manager
+
+
+class RepoRequest(BaseModel):
+    repository_id: str
 
 router = APIRouter(prefix="/architecture", tags=["Architecture"])
 
@@ -276,22 +281,22 @@ def _build_file_tree_architecture(doc_ids, vs, stack):
 
 
 @router.post("/clear")
-def clear_index(repository_id: str):
+def clear_index(body: RepoRequest):
     count = 0
-    if manager.has_repo(repository_id):
-        hybrid = manager.get(repository_id)
+    if manager.has_repo(body.repository_id):
+        hybrid = manager.get(body.repository_id)
         count = hybrid.num_docs if hasattr(hybrid, "num_docs") else 0
-    manager.clear(repository_id)
-    return {"cleared": True, "repository_id": repository_id, "vectors_removed": count}
+    manager.clear(body.repository_id)
+    return {"cleared": True, "repository_id": body.repository_id, "vectors_removed": count}
 
 
 @router.post("/debug")
-def debug_vectorstore(repository_id: str):
-    if not manager.has_repo(repository_id):
-        return {"error": "no vectorstore", "repository_id": repository_id}
-    vs = manager.get(repository_id)
+def debug_vectorstore(body: RepoRequest):
+    if not manager.has_repo(body.repository_id):
+        return {"error": "no vectorstore", "repository_id": body.repository_id}
+    vs = manager.get(body.repository_id)
     return {
-        "repository_id": repository_id,
+        "repository_id": body.repository_id,
         "has_docstore": hasattr(vs, "docstore"),
         "docstore_type": type(vs.docstore).__name__ if hasattr(vs, "docstore") else None,
         "docstore_len": len(vs.docstore) if hasattr(vs, "docstore") else 0,
@@ -303,12 +308,13 @@ def debug_vectorstore(repository_id: str):
 
 
 @router.post("/generate")
-def generate_architecture(repository_id: str):
+def generate_architecture(body: RepoRequest):
+    repo_id = body.repository_id
     try:
-        if not manager.has_repo(repository_id):
-            raise HTTPException(status_code=400, detail=f"No vectorstore for repository: {repository_id}")
+        if not manager.has_repo(repo_id):
+            raise HTTPException(status_code=400, detail=f"No vectorstore for repository: {repo_id}")
 
-        vs = manager.get(repository_id)
+        vs = manager.get(repo_id)
         if not vs or not hasattr(vs, "docstore"):
             raise HTTPException(status_code=400, detail="No vectorstore available")
 
@@ -320,7 +326,7 @@ def generate_architecture(repository_id: str):
             docstore_size = len(vs.docstore) if vs.docstore else 0
             faiss_size = len(vs.index_to_docstore_id) if hasattr(vs, 'index_to_docstore_id') else 0
             bm25_size = len(vs.bm25.index_to_docstore_id) if hasattr(vs, 'bm25') and hasattr(vs.bm25, 'index_to_docstore_id') else 0
-            print(f"[ARCH] repo={repository_id} docstore={docstore_size} faiss_idx={faiss_size} bm25_idx={bm25_size}")
+            print(f"[ARCH] repo={repo_id} docstore={docstore_size} faiss_idx={faiss_size} bm25_idx={bm25_size}")
 
             doc_ids = list(vs.docstore.keys()) if vs.docstore else list(vs.index_to_docstore_id.values())
             print(f"[ARCH] doc_ids count={len(doc_ids)}")
