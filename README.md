@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/logo.png" width="80" alt="CodeSense">
-</p>
 
 <h1 align="center">CodeSense</h1>
 
