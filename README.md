@@ -36,21 +36,18 @@ Connect any GitHub repository and instantly get:
 
 Built with FastAPI, React, FAISS, BM25, ONNX Runtime, and Groq RAG.
 
-## Why CodeSense?
+## At a Glance
 
-Modern codebases are difficult to understand because:
-
-- Documentation becomes outdated the moment it's written
-- Large repositories require hours of manual exploration
-- Onboarding into unfamiliar systems is slow and painful
-- Finding the right code by keyword search misses semantic context
-
-CodeSense solves this by creating an **AI intelligence layer** over repositories:
-
-- **Hybrid retrieval** (semantic + lexical) finds code by meaning, not just keywords
-- **AST-based parsing** understands code structure at the symbol level
-- **RAG-based reasoning** answers questions using actual source code as context
-- **Automated architecture discovery** reverse-engineers system diagrams from imports and routes
+| | |
+|---|---|
+| **Languages** | 20+ supported (Python, JS, TS, Rust, Go, Java, etc.) |
+| **Max files per repo** | 500 |
+| **Embedding dimensions** | 384 (ONNX) / 1024 (Jina) |
+| **Retrieval** | Hybrid FAISS + BM25 + RRF fusion |
+| **Auth** | Google OAuth + JWT |
+| **Indexing** | Thread-safe, persistent, atomic saves |
+| **Parsing** | AST-aware (tree-sitter + Python `ast`) |
+| **Deployment** | Render.com + Cloudflare Pages |
 
 ## Screenshots
 
@@ -74,6 +71,43 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ![Q&A](assets/qandasection.png)
 
+## Why CodeSense?
+
+Modern codebases are difficult to understand because:
+
+- Documentation becomes outdated the moment it's written
+- Large repositories require hours of manual exploration
+- Onboarding into unfamiliar systems is slow and painful
+- Finding the right code by keyword search misses semantic context
+
+CodeSense solves this by creating an **AI intelligence layer** over repositories:
+
+- **Hybrid retrieval** (semantic + lexical) finds code by meaning, not just keywords
+- **AST-based parsing** understands code structure at the symbol level
+- **RAG-based reasoning** answers questions using actual source code as context
+- **Automated architecture discovery** reverse-engineers system diagrams from imports and routes
+
+## Highlights
+
+- Hybrid retrieval (FAISS + BM25 + RRF)
+- AST-aware chunking using tree-sitter (20+ languages)
+- Local ONNX fallback when remote embeddings are unavailable
+- Automatic architecture diagram generation from code analysis
+- Thread-safe per-repository indexing with atomic persistence
+- AI-powered codebase Q&A with confidence scoring
+- Conversation history with Google OAuth + JWT auth
+
+## Features
+
+| Feature | Description |
+|---|---|
+| 🔍 **Semantic Search** | Hybrid FAISS + BM25 retrieval with Reciprocal Rank Fusion, re-ranked by parse quality and query intent |
+| 🏗️ **Architecture Generation** | Scans route definitions, classifies endpoints into 22 functional domains, detects layers, builds dependency graphs, renders Mermaid.js diagrams |
+| 💬 **AI Q&A** | Retrieval-Augmented Generation using Groq LLM — retrieved code chunks are injected as context for grounded answers |
+| 🌳 **Multi-Language Parsing** | Tree-sitter AST extraction for 20+ languages; Python files also use built-in `ast` for symbol boundaries |
+| ⚡ **Smart Indexing** | Deterministic chunk IDs (SHA1), noise filtering, parse quality metadata, per-repo thread-safe ingestion |
+| 🔒 **Thread-Safe Repository Indexing** | Per-repository locking, atomic persistence via temp-dir rename, LRU caching (max 5 repos) to prevent concurrent conflicts |
+
 ## Tech Stack
 
 <p align="center">
@@ -90,7 +124,7 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 ### Backend
 
 | Component | Technology |
-|-----------|-----------|
+|---|---|
 | API Framework | FastAPI (Python 3.12) |
 | Database | SQLAlchemy + SQLite / PostgreSQL |
 | Auth | Google OAuth 2.0 + JWT (HS256) |
@@ -105,7 +139,7 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 ### Frontend
 
 | Component | Technology |
-|-----------|-----------|
+|---|---|
 | Framework | React 19 |
 | Markdown | react-markdown 10 + remark-gfm 4 |
 | Diagrams | Mermaid.js 10 |
@@ -113,13 +147,40 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 | Styling | Custom CSS (dark cyber/neon theme) |
 | Hosting | Cloudflare Pages |
 
-## Features
+## Architecture Overview
 
-- **Semantic Search** — Hybrid FAISS + BM25 retrieval with Reciprocal Rank Fusion, re-ranked by parse quality and query intent. Search your entire repo by meaning.
-- **Architecture Generation** — Scans route definitions, classifies endpoints into 22 functional domains, detects layers (frontend/backend), identifies tech stack, builds dependency graphs, and renders Mermaid.js diagrams.
-- **AI Q&A** — Retrieval-Augmented Generation pipeline using Groq LLM. Retrieved code chunks are injected as context for grounded answers with confidence scoring.
-- **Multi-Language Parsing** — Tree-sitter AST extraction for Python, JavaScript, TypeScript, Rust, Go, Java, Ruby, PHP, C, C++, and more. Python files also get built-in `ast` module analysis for symbol boundaries.
-- **Smart Indexing** — Deterministic chunk IDs (SHA1), noise filtering, parse quality metadata, and per-repo thread-safe ingestion with atomic saves.
+```
+GitHub Repository
+        │
+        ▼
+  GitHub API (parallel download, 3 threads)
+        │
+        ▼
+  AST Chunking (tree-sitter / Python ast)
+        │
+        ▼
+  Embedding (Jina AI v3 or BGE ONNX)
+        │
+   ┌────┴────┐
+   │         │
+ FAISS      BM25
+(vectors)  (lexical)
+   │         │
+   └────┬────┘
+        ▼
+  Reciprocal Rank Fusion (k=60)
+        │
+        ▼
+  Groq LLM (RAG)     Frontend (React 19)
+        │                    │
+        └────────┬───────────┘
+                 ▼
+           User (Cloudflare Pages)
+```
+
+Deployment: FastAPI on Render.com, React SPA on Cloudflare Pages.
+
+Full architecture, ingestion pipeline, and RAG details → [docs/architecture.md](docs/architecture.md)
 
 ## Performance
 
@@ -132,24 +193,6 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 | RRF fusion parameter | k=60 |
 | Cache size (in-memory repos) | 5 (LRU) |
 | Index persistence | Disk (atomic save) |
-
-## Architecture Overview
-
-```
-Frontend (React 19 · Cloudflare Pages)
-        │
-        ▼ HTTP/JSON
-Backend (FastAPI · Render)
-        │
-   ┌────┴────┐
-   │         │
- FAISS     BM25     Groq LLM
-Index    Index      (RAG)
-```
-
-Deployment: FastAPI on Render.com, React SPA on Cloudflare Pages.
-
-Full architecture, ingestion pipeline, and RAG details → [docs/architecture.md](docs/architecture.md)
 
 ## Documentation
 
@@ -212,7 +255,7 @@ code-app/
 ### Environment Variables
 
 | Variable | Required | Description |
-|----------|----------|-------------|
+|---|---|---|
 | `GROQ_API_KEY` | Yes | Groq API key for LLM queries |
 | `JWT_SECRET` | Yes | Secret for JWT signing (HS256) |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
@@ -237,7 +280,7 @@ npm start
 ### Production Deployment
 
 | Platform | Service | Details |
-|----------|---------|---------|
+|---|---|---|
 | **Render.com** | FastAPI backend | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | **Cloudflare Pages** | React SPA | `npm run build`, output `build/`, `_redirects` for SPA routing |
 
@@ -249,3 +292,7 @@ npm start
 - Per-repository thread locks prevent concurrent index corruption
 - Atomic index saves (write to temp, rename on success)
 - `.env` files are gitignored — never commit secrets
+
+## License
+
+MIT
