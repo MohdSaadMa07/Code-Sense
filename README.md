@@ -56,7 +56,7 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ### Repository Ingestion
 
-![Dashboard](assets/dashboard.png)
+![Dashboard](assets/ingestion.png)
 
 ### Deep Semantic Search
 
@@ -64,7 +64,7 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ### Architecture Diagram
 
-![Architecture](assets/architecture%20page.png)
+![Architecture](assets/architecture.png)
 
 ### AI Codebase Q&A
 
