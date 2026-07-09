@@ -54,13 +54,13 @@ CodeSense solves this by creating an **AI intelligence layer** over repositories
 
 ## Screenshots
 
-### Repository Ingestion
+### Landing Page
 
-![Dashboard](assets/ingestion.png)
+![Landing](assets/landing.png)
 
-### Chat Conversation
+### Connect Repository
 
-![Chat](assets/chat.png)
+![Ingestion](assets/ingestion.png)
 
 ### Architecture Diagram
 
