@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from app.services.storage import store_documents
 from langchain_core.documents import Document
 
@@ -7,7 +7,7 @@ router = APIRouter(prefix="/ingest", tags=["Ingest"])
 
 
 @router.post("/")
-async def ingest_file(file: UploadFile = File(...)):
+async def ingest_file(repository_id: str = Form(...), file: UploadFile = File(...)):
     content = await file.read()
     if not content:
         raise HTTPException(status_code=422, detail="Uploaded file is empty.")
@@ -31,10 +31,10 @@ async def ingest_file(file: UploadFile = File(...)):
     ]
 
     try:
-        chunks_ingested = store_documents(documents)
+        chunks_ingested = store_documents(repository_id, documents)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {exc}") from exc
 
-    return {"status": "success", "chunks_ingested": chunks_ingested}
+    return {"status": "success", "repository_id": repository_id, "chunks_ingested": chunks_ingested}

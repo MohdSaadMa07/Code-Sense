@@ -1,3 +1,4 @@
+import gc
 import hashlib
 import os
 import shutil
@@ -6,31 +7,16 @@ from pathlib import Path
 from langchain_core.documents import Document
 from app.services.ast_chunker import chunk_documents_with_ast
 from app.services.retrieval.hybrid import HybridRetriever
-
-_vectorstore = None
+from app.services.retrieval.manager import manager
 
 VECTORSTORE_PATH = str(Path(__file__).resolve().parent.parent.parent / "vectorstore")
 
 
 def clear_vectorstore():
-    global _vectorstore
-    _vectorstore = None
-    if os.path.isdir(VECTORSTORE_PATH):
-        shutil.rmtree(VECTORSTORE_PATH)
-        print(f"[CLEAR] Removed vectorstore at {VECTORSTORE_PATH}")
-
-
-def get_vectorstore():
-    global _vectorstore
-    if _vectorstore is None and os.path.isdir(VECTORSTORE_PATH) and os.path.isfile(os.path.join(VECTORSTORE_PATH, "bm25_index.pkl")):
-        try:
-            _vectorstore = HybridRetriever.load_local(VECTORSTORE_PATH)
-            print(f"[OK] Loaded Hybrid index ({_vectorstore.num_docs} docs) from {VECTORSTORE_PATH}")
-        except Exception as e:
-            print(f"[WARN] Could not load existing Hybrid index: {e}")
-    if _vectorstore is None:
-        _vectorstore = HybridRetriever()
-    return _vectorstore
+    path = VECTORSTORE_PATH
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+        print(f"[CLEAR] Removed vectorstore at {path}")
 
 
 def _default_parse_quality(chunk_type: str) -> str:
@@ -91,10 +77,9 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
 BATCH_SIZE = 10
 
 
-def store_documents(documents: list[Document], chunk_size=2000, chunk_overlap=50):
+def store_documents(repo_id: str, documents: list[Document], chunk_size=2000, chunk_overlap=50):
     if not documents:
         raise ValueError("No documents provided")
-    vs = get_vectorstore()
     all_chunks = chunk_documents_with_ast(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     del documents
     ingestible_chunks = _filter_chunks(all_chunks)
@@ -103,34 +88,28 @@ def store_documents(documents: list[Document], chunk_size=2000, chunk_overlap=50
     if ingestible_chunks:
         for i in range(0, len(ingestible_chunks), BATCH_SIZE):
             batch = ingestible_chunks[i:i + BATCH_SIZE]
-            vs.add_documents(batch)
-            import gc; gc.collect()
-        vs.save_local(VECTORSTORE_PATH)
-        print(f"[SAVE] Saved Hybrid index ({vs.num_docs} docs) to {VECTORSTORE_PATH}")
+            manager.ingest(repo_id, batch)
+            gc.collect()
         total_ingested = len(ingestible_chunks)
     del ingestible_chunks
-    import gc; gc.collect()
+    gc.collect()
     return total_ingested
 
 
-def store_single_batch(documents: list[Document], save: bool = True, chunk_size=2000, chunk_overlap=50):
+def store_single_batch(repo_id: str, documents: list[Document], save: bool = True, chunk_size=2000, chunk_overlap=50):
     if not documents:
         return 0
-    vs = get_vectorstore()
     all_chunks = chunk_documents_with_ast(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     ingestible_chunks = _filter_chunks(all_chunks)
     del all_chunks, documents
-    import gc; gc.collect()
+    gc.collect()
     if ingestible_chunks:
         for i in range(0, len(ingestible_chunks), BATCH_SIZE):
             batch = ingestible_chunks[i:i + BATCH_SIZE]
-            vs.add_documents(batch)
-            import gc; gc.collect()
+            manager.ingest(repo_id, batch)
+            gc.collect()
         total = len(ingestible_chunks)
         del ingestible_chunks
-        if save:
-            vs.save_local(VECTORSTORE_PATH)
-            print(f"[SAVE] Saved Hybrid index ({vs.num_docs} docs) to {VECTORSTORE_PATH}")
-        import gc; gc.collect()
+        gc.collect()
         return total
     return 0

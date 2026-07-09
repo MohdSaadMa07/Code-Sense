@@ -1,6 +1,6 @@
 import os, re
 from openai import OpenAI
-from app.services.storage import get_vectorstore
+from app.services.retrieval.manager import manager
 
 print("[RAG] Using Groq (GPT-OSS 120B)")
 
@@ -61,10 +61,8 @@ def _is_grounded(answer: str, context: str) -> bool:
     return hits >= 2
 
 
-def rag_query(query: str, top_k: int = 3):
-    vs = get_vectorstore()
-    if not vs:
-        raise ValueError("Vectorstore not initialized")
+def rag_query(repo_id: str, query: str, top_k: int = 3):
+    vs = manager.get(repo_id)
 
     results = vs.similarity_search_with_score(query, k=top_k * 3)
 
@@ -86,7 +84,6 @@ def rag_query(query: str, top_k: int = 3):
     selected_docs = docs[:top_k]
     context = _build_context(selected_docs)
 
-    # psutil shortcut
     if "psutil" in query.lower():
         extracted = set()
         for d in selected_docs:

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/gpt", tags=["GPT"])
 
 
 class LlamaQueryRequest(BaseModel):
+    repository_id: Optional[str] = None
     prompt: Optional[str] = None
     top_k: Optional[int] = None
     include_context: Optional[bool] = None
@@ -20,9 +21,6 @@ class LlamaQueryRequest(BaseModel):
     conversation_id: Optional[int] = None
 
 
-# ---------------------------
-# Confidence (heuristic)
-# ---------------------------
 def _detect_failure(answer: str) -> bool:
     bad = ["i don't know", "cannot answer", "not relevant", "insufficient"]
     return any(p in answer.lower() for p in bad)
@@ -57,9 +55,6 @@ def _compute_confidence(answer: str, chunks) -> tuple:
         return "low", max(0.15, ratio)
 
 
-# ---------------------------
-# Endpoint
-# ---------------------------
 @router.post("/query")
 def query_gpt(
     prompt: Optional[str] = Query(None),
@@ -67,6 +62,7 @@ def query_gpt(
     include_context: bool = Query(False),
     debug: bool = Query(False),
     conversation_id: Optional[int] = Query(None),
+    repository_id: Optional[str] = Query(None),
     payload: Optional[LlamaQueryRequest] = Body(None),
     user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
@@ -82,11 +78,16 @@ def query_gpt(
             debug = payload.debug
         if payload and payload.conversation_id is not None:
             conversation_id = payload.conversation_id
+        if repository_id is None and payload and payload.repository_id:
+            repository_id = payload.repository_id
 
         if not prompt:
             raise ValueError("'prompt' is required in query params or JSON body")
 
-        rag_result = rag_query(query=prompt, top_k=top_k)
+        if not repository_id:
+            raise ValueError("'repository_id' is required")
+
+        rag_result = rag_query(repository_id, query=prompt, top_k=top_k)
 
         answer = rag_result.get("llm_answer", "")
         chunks = rag_result.get("retrieved_chunks", [])

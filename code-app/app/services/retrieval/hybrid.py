@@ -1,3 +1,4 @@
+import os
 from typing import List, Tuple
 from langchain_core.documents import Document
 
@@ -35,6 +36,22 @@ class HybridRetriever:
     def save_local(self, folder_path: str):
         self.bm25.save_local(folder_path)
         self.faiss.save_local(folder_path)
+
+    def save_local_atomic(self, folder_path: str):
+        import tempfile
+        os.makedirs(folder_path, exist_ok=True)
+        tmp_dir = tempfile.mkdtemp(dir=folder_path)
+        try:
+            self.bm25.save_local(tmp_dir)
+            self.faiss.save_local(tmp_dir)
+            for fname in ("bm25_index.pkl", "faiss.index", "faiss_mapping.pkl"):
+                src = os.path.join(tmp_dir, fname)
+                dst = os.path.join(folder_path, fname)
+                if os.path.exists(src):
+                    os.replace(src, dst)
+        finally:
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def add_documents(self, documents: list[Document]):
         # The document needs a stable id so both retrievers reference the same doc

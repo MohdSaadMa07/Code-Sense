@@ -2,7 +2,7 @@ import gc
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.github_loader import parse_github_repo, collect_repo_files
-from app.services.storage import store_documents, store_single_batch
+from app.services.storage import store_single_batch
 from app.services.onnx_embeddings import release_model
 from langchain_core.documents import Document
 
@@ -21,6 +21,8 @@ def ingest_github_repo(request: GitHubIngestRequest):
             owner, repo = parse_github_repo(request.repo_url)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        repo_id = f"{owner}/{repo}"
 
         try:
             files = collect_repo_files(owner, repo, max_files=request.max_files)
@@ -46,7 +48,7 @@ def ingest_github_repo(request: GitHubIngestRequest):
             if not docs:
                 continue
             try:
-                stored_count = store_single_batch(docs, save=(i + INGEST_MICRO_BATCH >= len(files)))
+                stored_count = store_single_batch(repo_id, docs, save=(i + INGEST_MICRO_BATCH >= len(files)))
                 total_chunks += stored_count
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -62,6 +64,7 @@ def ingest_github_repo(request: GitHubIngestRequest):
 
         return {
             "status": "success",
+            "repository_id": repo_id,
             "repo": f"{owner}/{repo}",
             "files_ingested": file_count,
             "chunks_ingested": total_chunks,

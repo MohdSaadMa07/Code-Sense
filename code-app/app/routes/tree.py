@@ -1,20 +1,23 @@
-from fastapi import APIRouter
-from app.services.storage import get_vectorstore
+from fastapi import APIRouter, Query
+from app.services.retrieval.manager import manager
 
 router = APIRouter(prefix="/symbols", tags=["Symbols"])
 
 
 @router.get("/")
-def get_symbols():
-    vs = get_vectorstore()
+def get_symbols(repository_id: str = Query(...)):
+    if not manager.has_repo(repository_id):
+        return {"files": []}
 
-    if not vs or not hasattr(vs, "docstore"):
+    hybrid = manager.get(repository_id)
+
+    if not hasattr(hybrid, "docstore"):
         return {"files": []}
 
     files: dict[str, list[dict]] = {}
 
-    for doc_id in vs.index_to_docstore_id.values():
-        doc = vs.docstore.get(doc_id)
+    for doc_id in hybrid.index_to_docstore_id.values():
+        doc = hybrid.docstore.get(doc_id)
         if not doc or not hasattr(doc, "metadata"):
             continue
 

@@ -90,4 +90,4 @@ if FRONTEND_BUILD.is_dir():
 else:
     @app.get("/")
     async def root():
-        return {"message": "FastAPI + MiniLM embeddings ready!"}
+        return {"message": "FastAPI + BGE embeddings ready!"}

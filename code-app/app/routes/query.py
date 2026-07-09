@@ -1,18 +1,16 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services.storage import get_vectorstore
+from app.services.retrieval.manager import manager
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
 
 class QueryRequest(BaseModel):
+    repository_id: str
     query: str
     top_k: int = 3
 
 
-# ---------------------------
-# Intent Detection
-# ---------------------------
 def _is_column_intent(query: str) -> bool:
     text = query.lower()
     return "column" in text or (
@@ -29,9 +27,6 @@ def _is_code_intent(query: str) -> bool:
     return any(marker in text for marker in code_markers)
 
 
-# ---------------------------
-# Adjusted Scoring
-# ---------------------------
 def _adjusted_score(query: str, doc, score: float) -> float:
     adjusted = float(score)
     metadata = doc.metadata or {}
@@ -41,24 +36,20 @@ def _adjusted_score(query: str, doc, score: float) -> float:
     chunk_type = metadata.get("chunk_type")
     parse_quality = metadata.get("parse_quality")
 
-    # Parse quality weighting
     if parse_quality == "high":
         adjusted -= 0.15
     elif parse_quality == "low":
         adjusted += 0.15
 
-    # Penalize fallback chunks
     if chunk_type == "fallback":
         adjusted += 0.25
 
-    # Column intent tuning
     if _is_column_intent(query):
         if chunk_type == "html_table_headers":
             adjusted -= 0.45
         if "table columns:" in content:
             adjusted -= 0.25
 
-    # Code intent tuning
     if _is_code_intent(query):
         if chunk_type in {"ast", "tree_sitter"}:
             adjusted -= 0.2
@@ -68,14 +59,10 @@ def _adjusted_score(query: str, doc, score: float) -> float:
     return adjusted
 
 
-# ---------------------------
-# Confidence Calculation
-# ---------------------------
 def _compute_confidence(query: str, ranked_results, top_k: int):
     if not ranked_results:
         return "low", 0.0
 
-    # Use top_k results
     top_items = ranked_results[:top_k]
 
     adjusted_scores = [
@@ -86,14 +73,12 @@ def _compute_confidence(query: str, ranked_results, top_k: int):
     best = min(adjusted_scores)
     avg = sum(adjusted_scores) / len(adjusted_scores)
 
-    # Gap signal (difference between top 2)
     gap = 0
     if len(ranked_results) > 1:
         best_score = _adjusted_score(query, ranked_results[0][0], ranked_results[0][1])
         second_score = _adjusted_score(query, ranked_results[1][0], ranked_results[1][1])
         gap = second_score - best_score
 
-    # Heuristic thresholds (tune later)
     if best < 0.8 and avg < 1.2:
         label = "high"
         score = 0.85
@@ -104,23 +89,14 @@ def _compute_confidence(query: str, ranked_results, top_k: int):
         label = "low"
         score = 0.3
 
-    # Boost if strong gap (clear winner)
     if gap > 0.3:
         score = min(score + 0.1, 1.0)
 
     return label, round(score, 2)
 
 
-# ---------------------------
-# Main Endpoint
-# ---------------------------
-def search_query(query: str, top_k: int = 3):
-    vectorstore = get_vectorstore()
-
-    results = vectorstore.similarity_search_with_score(
-        query,
-        k=top_k * 4,
-    )
+def search_query(repository_id: str, query: str, top_k: int = 3):
+    results = manager.search(repository_id, query, k=top_k * 4)
 
     ranked_results = sorted(
         results,
@@ -171,4 +147,4 @@ def search_query(query: str, top_k: int = 3):
 
 @router.post("/")
 def query_vectorstore(request: QueryRequest):
-    return search_query(request.query, request.top_k)
+    return search_query(request.repository_id, request.query, request.top_k)

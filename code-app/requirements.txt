@@ -12,6 +12,6 @@ httpx
 faiss-cpu
 onnxruntime
 tokenizers
-huggingface-hub
 numpy
 psycopg2-binary
+tree-sitter-languages

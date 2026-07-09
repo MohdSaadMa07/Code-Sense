@@ -116,6 +116,7 @@ def deduplicate_documents(documents: list[Document]) -> list[Document]:
 def ingest_github_repo(repo_url: str) -> dict:
     try:
         owner, repo = parse_github_repo(repo_url)
+        repo_id = f"{owner}/{repo}"
 
         files = collect_repo_files(owner, repo)
 
@@ -132,10 +133,11 @@ def ingest_github_repo(repo_url: str) -> dict:
 
         documents = deduplicate_documents(documents)
 
-        chunks_ingested = store_documents(documents)
+        chunks_ingested = store_documents(repo_id, documents)
 
         return {
             "status": "success",
+            "repository_id": repo_id,
             "repo": f"{owner}/{repo}",
             "files_ingested": len(files),
             "chunks_ingested": chunks_ingested,
