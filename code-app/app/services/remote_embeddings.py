@@ -8,8 +8,25 @@ JINA_URL = "https://api.jina.ai/v1/embeddings"
 _MODEL = "jina-embeddings-v3"
 EMBEDDING_DIM = 1024
 
-_MAX_RETRIES = 5
+_MAX_RETRIES = 8
 _RETRY_DELAY = 2.0
+
+
+def _rate_limit_wait(resp) -> float:
+    header = resp.headers.get("Retry-After")
+    if header:
+        try:
+            return max(float(header), 1.0)
+        except ValueError:
+            pass
+    body = ""
+    try:
+        body = resp.text or ""
+    except Exception:
+        pass
+    if "token rate limit" in body.lower() or "rate limit" in body.lower():
+        return 45.0
+    return _RETRY_DELAY * 2
 
 
 def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
@@ -30,8 +47,9 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
             )
 
             if resp.status_code == 429:
-                wait = _RETRY_DELAY * (2 ** attempt)
-                time.sleep(wait)
+                wait = _rate_limit_wait(resp) if attempt < _MAX_RETRIES - 1 else 0.0
+                if wait:
+                    time.sleep(wait)
                 continue
 
             resp.raise_for_status()

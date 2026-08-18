@@ -84,11 +84,10 @@ def _download_file(item: dict) -> dict | None:
 
 
 def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 500) -> list[dict]:
-    file_items = []
-    _gather_file_items(owner, repo, path, max_files, file_items)
+    file_items = _gather_file_items(owner, repo, path, max_files)
 
     collected = []
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         futs = {pool.submit(_download_file, item): item for item in file_items}
         for fut in as_completed(futs):
             result = fut.result()
@@ -97,16 +96,40 @@ def collect_repo_files(owner: str, repo: str, path: str = "", max_files: int = 5
     return collected
 
 
-def _gather_file_items(owner: str, repo: str, path: str, max_files: int, out: list):
-    items = fetch_repo_contents(owner, repo, path)
-    for item in items:
-        if len(out) >= max_files:
-            return
-        if item["type"] == "dir":
-            _gather_file_items(owner, repo, item["path"], max_files, out)
-        elif item["type"] == "file" and is_allowed_file(item["path"]):
-            if item.get("size", 0) <= MAX_FILE_SIZE:
-                out.append(item)
+def _gather_file_items(owner: str, repo: str, path: str, max_files: int) -> list[dict]:
+    import threading
+
+    out: list[dict] = []
+    out_lock = threading.Lock()
+
+    def walk(dir_path: str):
+        items = fetch_repo_contents(owner, repo, dir_path)
+        dirs = []
+        for item in items:
+            if item["type"] == "dir":
+                dirs.append(item["path"])
+            elif item["type"] == "file" and is_allowed_file(item["path"]):
+                if item.get("size", 0) <= MAX_FILE_SIZE:
+                    with out_lock:
+                        if len(out) < max_files:
+                            out.append(item)
+        return dirs
+
+    def crawl(start_path: str):
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            pending = [start_path]
+            while pending:
+                current = pending[:]
+                pending = []
+                futures = {pool.submit(walk, d): d for d in current}
+                for fut in as_completed(futures):
+                    pending.extend(fut.result())
+                with out_lock:
+                    if len(out) >= max_files:
+                        break
+
+    crawl(path)
+    return out[:max_files]
 
 
 def deduplicate_documents(documents: list[Document]) -> list[Document]:
