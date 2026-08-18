@@ -5,9 +5,12 @@ import numpy as np
 
 from langchain_core.documents import Document
 
-if os.getenv("VOYAGE_API_KEY"):
-    from app.services.remote_embeddings import encode as get_embeddings, EMBEDDING_DIM
-    EMBEDDING_MODEL = "voyage-code-3"
+if os.getenv("JINA_API_KEY") or os.getenv("VOYAGE_API_KEY"):
+    from app.services.remote_embeddings import (
+        encode as get_embeddings,
+        EMBEDDING_DIM,
+        EMBEDDING_MODEL,
+    )
 else:
     from app.services.onnx_embeddings import encode as get_embeddings
     EMBEDDING_DIM = 384

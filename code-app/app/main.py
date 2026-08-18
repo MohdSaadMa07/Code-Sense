@@ -60,7 +60,7 @@ def health():
 
 @app.on_event("startup")
 def _on_startup():
-    if os.getenv("VOYAGE_API_KEY"):
+    if os.getenv("JINA_API_KEY") or os.getenv("VOYAGE_API_KEY"):
         _model_ready.set()
         gc.collect()
         return
