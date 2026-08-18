@@ -4,18 +4,20 @@
 
 CodeSense supports two embedding backends, selected at import time in `faiss_index.py`:
 
-### Jina AI (Remote — Default)
+### Voyage AI (Remote — Default)
 
-- **Model**: `jina-embeddings-v3` (1024-dimensional)
-- **Used when**: `JINA_API_KEY` environment variable is set
-- **Retry logic**: 5 attempts with exponential backoff (2s → 4s → 8s → 16s → 32s)
-- **Rate-limit handling**: automatic retry on HTTP 429
+- **Model**: `voyage-code-3` (1024-dimensional)
+- **Used when**: `VOYAGE_API_KEY` environment variable is set
+- **Input types**: `document` for indexing, `query` for search
+- **Retry logic**: 6 attempts with exponential backoff (2s → 4s → 8s → 16s → 30s)
+- **Rate-limit handling**: automatic retry on `RateLimitError` (30s wait per the rate window)
+- **Batch size**: requests are sub-batched to 8 texts to fit the free-tier token budget
 - **Code**: `app/services/remote_embeddings.py`
 
 ### BGE ONNX (Local — Fallback)
 
 - **Model**: `BAAI/bge-small-en-v1.5` (384-dimensional)
-- **Used when**: `JINA_API_KEY` is not set
+- **Used when**: `VOYAGE_API_KEY` is not set
 - Downloaded from Hugging Face on first startup
 - Optimized: sequential execution, single-thread CPU, aggressive garbage collection
 - Lazy-loaded in a background thread to avoid blocking startup
@@ -60,7 +62,8 @@ User Query
 ### FAISS Vector Index (`faiss_index.py`)
 
 - `IndexFlatIP` — inner product index (cosine sim with normalized vectors)
-- Dynamically uses 1024-dim (Jina) or 384-dim (BGE) based on embedding strategy
+- Dynamically uses 1024-dim (Voyage) or 384-dim (BGE) based on embedding strategy
+- On load, rebuilds the index when the stored dimension no longer matches the active embedding dimension
 - Persisted to disk via pickle + FAISS write_index
 
 ### BM25+ Lexical (`bm25.py`)

@@ -93,7 +93,7 @@ def release_model():
     gc.collect()
 
 
-def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
+def encode(texts: list[str], normalize_embeddings: bool = True, input_type: str = "document") -> np.ndarray:
     _load_session()
 
     encodings = [_tokenizer.encode(t) for t in texts]

@@ -2,16 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.routes.ingest import router as ingest_router
-from app.routes.query import router as query_router
-from app.routes.github import router as github_router
-from app.routes.gpt import router as gpt_router
-from app.routes.tree import router as symbols_router
-from app.routes.architecture import router as architecture_router
-from app.routes.auth import router as auth_router
-from app.routes.conversations import router as conversations_router
-from app.database import init_db
-from app.models import User, Conversation, Message
 
 import gc
 import os
@@ -24,6 +14,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 APP_DIR = Path(__file__).resolve().parent
 load_dotenv(PROJECT_ROOT / ".env")
 load_dotenv(APP_DIR / ".env", override=True)
+
+from app.routes.ingest import router as ingest_router
+from app.routes.query import router as query_router
+from app.routes.github import router as github_router
+from app.routes.gpt import router as gpt_router
+from app.routes.tree import router as symbols_router
+from app.routes.architecture import router as architecture_router
+from app.routes.auth import router as auth_router
+from app.routes.conversations import router as conversations_router
+from app.database import init_db
+from app.models import User, Conversation, Message
 
 app = FastAPI()
 
@@ -59,7 +60,7 @@ def health():
 
 @app.on_event("startup")
 def _on_startup():
-    if os.getenv("JINA_API_KEY"):
+    if os.getenv("VOYAGE_API_KEY"):
         _model_ready.set()
         gc.collect()
         return

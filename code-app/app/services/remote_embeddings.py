@@ -1,71 +1,72 @@
 import os
 import time
 import numpy as np
-import requests
 
-JINA_API_KEY = os.getenv("JINA_API_KEY")
-JINA_URL = "https://api.jina.ai/v1/embeddings"
-_MODEL = "jina-embeddings-v3"
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
+_MODEL = os.getenv("VOYAGE_MODEL", "voyage-code-3")
 EMBEDDING_DIM = 1024
 
-_MAX_RETRIES = 8
+_MAX_RETRIES = 6
 _RETRY_DELAY = 2.0
+_RATE_LIMIT_WAIT = 30.0
+_SUB_BATCH = 8
+
+_client = None
 
 
-def _rate_limit_wait(resp) -> float:
-    header = resp.headers.get("Retry-After")
-    if header:
-        try:
-            return max(float(header), 1.0)
-        except ValueError:
-            pass
-    body = ""
-    try:
-        body = resp.text or ""
-    except Exception:
-        pass
-    if "token rate limit" in body.lower() or "rate limit" in body.lower():
-        return 45.0
-    return _RETRY_DELAY * 2
+def _get_client():
+    global _client
+    if _client is None:
+        if not VOYAGE_API_KEY:
+            raise ValueError("VOYAGE_API_KEY environment variable is not set")
+        import voyageai
+        _client = voyageai.Client(api_key=VOYAGE_API_KEY)
+    return _client
 
 
-def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
-    if not JINA_API_KEY:
-        raise ValueError("JINA_API_KEY environment variable is not set")
+def _embed_part(client, texts: list[str], input_type: str) -> list[list[float]]:
+    from voyageai.error import RateLimitError
 
     last_exc = None
     for attempt in range(_MAX_RETRIES):
         try:
-            resp = requests.post(
-                JINA_URL,
-                headers={
-                    "Authorization": f"Bearer {JINA_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={"input": texts, "model": _MODEL},
-                timeout=120,
+            resp = client.embed(
+                texts,
+                model=_MODEL,
+                input_type=input_type,
+                output_dimension=EMBEDDING_DIM,
+                truncation=True,
             )
-
-            if resp.status_code == 429:
-                wait = _rate_limit_wait(resp)
-                time.sleep(wait)
-                continue
-
-            if resp.status_code >= 400:
-                resp.raise_for_status()
-
-            data = resp.json()
-            embeddings = np.array([d["embedding"] for d in data["data"]], dtype=np.float32)
-
-            if normalize_embeddings:
-                norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-                embeddings = embeddings / np.clip(norms, 1e-12, None)
-
-            return embeddings
-
-        except requests.RequestException as exc:
+            return resp.embeddings
+        except RateLimitError as exc:
+            last_exc = exc
+            time.sleep(_RATE_LIMIT_WAIT)
+        except Exception as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
                 time.sleep(min(_RETRY_DELAY * (2 ** attempt), 30))
 
-    raise last_exc or RuntimeError("Embedding request failed after retries")
+    raise last_exc or RuntimeError("Voyage embedding request failed after retries")
+
+
+def encode(
+    texts: list[str],
+    normalize_embeddings: bool = True,
+    input_type: str = "document",
+) -> np.ndarray:
+    if not VOYAGE_API_KEY:
+        raise ValueError("VOYAGE_API_KEY environment variable is not set")
+
+    client = _get_client()
+    embeddings: list[list[float]] = []
+    for i in range(0, len(texts), _SUB_BATCH):
+        part = list(texts[i:i + _SUB_BATCH])
+        embeddings.extend(_embed_part(client, part, input_type))
+
+    arr = np.array(embeddings, dtype=np.float32)
+
+    if normalize_embeddings:
+        norms = np.linalg.norm(arr, axis=1, keepdims=True)
+        arr = arr / np.clip(norms, 1e-12, None)
+
+    return arr

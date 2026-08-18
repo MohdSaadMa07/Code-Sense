@@ -80,12 +80,12 @@ BATCH_SIZE = 64
 def _ingest_chunks(repo_id: str, chunks: list[Document]) -> int:
     if not chunks:
         return 0
-    total = len(chunks)
+    total = 0
     n = len(chunks)
     for i in range(0, n, BATCH_SIZE):
         batch = chunks[i:i + BATCH_SIZE]
         last = i + BATCH_SIZE >= n
-        manager.ingest(repo_id, batch, save=last)
+        total += manager.ingest(repo_id, batch, save=last)
         gc.collect()
     return total
 

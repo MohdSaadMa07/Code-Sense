@@ -54,15 +54,26 @@ class HybridRetriever:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def add_documents(self, documents: list[Document]):
-        # The document needs a stable id so both retrievers reference the same doc
-        # Ensure all docs have chunk_id before passing them down
+        # Skip chunks already indexed so unchanged code is not re-embedded
+        # on incremental ingestion. chunk_id is a deterministic sha1 over
+        # path + symbol + line range + content (see storage._with_ingestion_metadata).
         import uuid
+        fresh: list[Document] = []
         for doc in documents:
-            if "chunk_id" not in doc.metadata:
-                doc.metadata["chunk_id"] = str(uuid.uuid4())
-                
-        self.bm25.add_documents(documents)
-        self.faiss.add_documents(documents)
+            chunk_id = doc.metadata.get("chunk_id")
+            if not chunk_id:
+                chunk_id = str(uuid.uuid4())
+                doc.metadata["chunk_id"] = chunk_id
+            if chunk_id in self.docstore:
+                continue
+            fresh.append(doc)
+
+        if not fresh:
+            return 0
+
+        self.bm25.add_documents(fresh)
+        self.faiss.add_documents(fresh)
+        return len(fresh)
 
     def similarity_search_with_score(self, query: str, k: int = 4) -> List[Tuple[Document, float]]:
         # Fetch more candidates from each retriever before fusion

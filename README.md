@@ -243,7 +243,7 @@ code-app/
 | `JWT_SECRET` | Yes | Secret for JWT signing (HS256) |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID |
 | `GITHUB_TOKEN` | Recommended | GitHub API token (higher rate limits) |
-| `JINA_API_KEY` | Optional | Jina AI embeddings (falls back to local ONNX) |
+| `VOYAGE_API_KEY` | Optional | Voyage AI embeddings (`voyage-code-3`, 1024-dim; falls back to local ONNX) |
 | `DATABASE_URL` | Optional | PostgreSQL connection string (default: SQLite) |
 
 ### Local Development

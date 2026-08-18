@@ -10,6 +10,7 @@ sqlalchemy
 python-jose[cryptography]
 httpx
 faiss-cpu
+voyageai
 onnxruntime
 tokenizers
 numpy

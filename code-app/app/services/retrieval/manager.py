@@ -37,11 +37,11 @@ class RetrievalManager:
         lock = self.locks.get(repo_id)
         with lock:
             hybrid = self.get(repo_id)
-            hybrid.add_documents(documents)
+            added = hybrid.add_documents(documents)
             if save:
                 hybrid.save_local_atomic(self._repo_path(repo_id))
             self.cache.put(repo_id, hybrid)
-            return hybrid.num_docs
+            return added
 
     def search(self, repo_id: str, query: str, k: int = 4):
         hybrid = self.get(repo_id)
