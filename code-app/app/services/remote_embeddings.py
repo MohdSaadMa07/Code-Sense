@@ -47,12 +47,13 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
             )
 
             if resp.status_code == 429:
-                wait = _rate_limit_wait(resp) if attempt < _MAX_RETRIES - 1 else 0.0
-                if wait:
-                    time.sleep(wait)
+                wait = _rate_limit_wait(resp)
+                time.sleep(wait)
                 continue
 
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                resp.raise_for_status()
+
             data = resp.json()
             embeddings = np.array([d["embedding"] for d in data["data"]], dtype=np.float32)
 
@@ -65,6 +66,6 @@ def encode(texts: list[str], normalize_embeddings: bool = True) -> np.ndarray:
         except requests.RequestException as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES - 1:
-                time.sleep(_RETRY_DELAY * (2 ** attempt))
+                time.sleep(min(_RETRY_DELAY * (2 ** attempt), 30))
 
     raise last_exc or RuntimeError("Embedding request failed after retries")
