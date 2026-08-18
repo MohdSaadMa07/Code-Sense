@@ -39,6 +39,8 @@ EXTENSION_LANGUAGE_MAP = {
     ".html": "html",
     ".htm": "html",
     ".css": "css",
+    ".py": "python",
+    ".pyi": "python",
 }
 
 
