@@ -1,5 +1,4 @@
 import gc
-import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.github_loader import parse_github_repo, collect_repo_files
@@ -9,7 +8,7 @@ from langchain_core.documents import Document
 
 router = APIRouter(prefix="/github", tags=["GitHub"])
 
-INGEST_MICRO_BATCH = 5
+INGEST_MICRO_BATCH = 50
 
 class GitHubIngestRequest(BaseModel):
     repo_url: str
@@ -41,8 +40,6 @@ def ingest_github_repo(request: GitHubIngestRequest):
         total_chunks = 0
 
         for i in range(0, len(files), INGEST_MICRO_BATCH):
-            if i > 0:
-                time.sleep(1.5)
             batch = files[i:i + INGEST_MICRO_BATCH]
             docs = [
                 Document(page_content=f.get("content", ""), metadata={"path": f.get("path", "")})

@@ -74,7 +74,20 @@ def _filter_chunks(chunks: list[Document]) -> list[Document]:
     return filtered
 
 
-BATCH_SIZE = 10
+BATCH_SIZE = 64
+
+
+def _ingest_chunks(repo_id: str, chunks: list[Document]) -> int:
+    if not chunks:
+        return 0
+    total = len(chunks)
+    n = len(chunks)
+    for i in range(0, n, BATCH_SIZE):
+        batch = chunks[i:i + BATCH_SIZE]
+        last = i + BATCH_SIZE >= n
+        manager.ingest(repo_id, batch, save=last)
+        gc.collect()
+    return total
 
 
 def store_documents(repo_id: str, documents: list[Document], chunk_size=3000, chunk_overlap=50):
@@ -84,13 +97,7 @@ def store_documents(repo_id: str, documents: list[Document], chunk_size=3000, ch
     del documents
     ingestible_chunks = _filter_chunks(all_chunks)
     del all_chunks
-    total_ingested = 0
-    if ingestible_chunks:
-        for i in range(0, len(ingestible_chunks), BATCH_SIZE):
-            batch = ingestible_chunks[i:i + BATCH_SIZE]
-            manager.ingest(repo_id, batch)
-            gc.collect()
-        total_ingested = len(ingestible_chunks)
+    total_ingested = _ingest_chunks(repo_id, ingestible_chunks)
     del ingestible_chunks
     gc.collect()
     return total_ingested
@@ -103,13 +110,11 @@ def store_single_batch(repo_id: str, documents: list[Document], save: bool = Tru
     ingestible_chunks = _filter_chunks(all_chunks)
     del all_chunks, documents
     gc.collect()
-    if ingestible_chunks:
-        for i in range(0, len(ingestible_chunks), BATCH_SIZE):
-            batch = ingestible_chunks[i:i + BATCH_SIZE]
-            manager.ingest(repo_id, batch)
-            gc.collect()
-        total = len(ingestible_chunks)
-        del ingestible_chunks
-        gc.collect()
-        return total
-    return 0
+    if not ingestible_chunks:
+        return 0
+    total = _ingest_chunks(repo_id, ingestible_chunks)
+    if save:
+        manager.save(repo_id)
+    del ingestible_chunks
+    gc.collect()
+    return total

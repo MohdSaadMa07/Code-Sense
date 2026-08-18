@@ -33,18 +33,26 @@ class RetrievalManager:
         self.cache.put(repo_id, hybrid)
         return hybrid
 
-    def ingest(self, repo_id: str, documents: list) -> int:
+    def ingest(self, repo_id: str, documents: list, save: bool = True) -> int:
         lock = self.locks.get(repo_id)
         with lock:
             hybrid = self.get(repo_id)
             hybrid.add_documents(documents)
-            hybrid.save_local_atomic(self._repo_path(repo_id))
+            if save:
+                hybrid.save_local_atomic(self._repo_path(repo_id))
             self.cache.put(repo_id, hybrid)
             return hybrid.num_docs
 
     def search(self, repo_id: str, query: str, k: int = 4):
         hybrid = self.get(repo_id)
         return hybrid.similarity_search_with_score(query, k=k)
+
+    def save(self, repo_id: str):
+        lock = self.locks.get(repo_id)
+        with lock:
+            hybrid = self.get(repo_id)
+            hybrid.save_local_atomic(self._repo_path(repo_id))
+            self.cache.put(repo_id, hybrid)
 
     def clear(self, repo_id: str):
         lock = self.locks.get(repo_id)
